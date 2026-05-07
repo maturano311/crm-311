@@ -78,6 +78,16 @@ export default function DashboardClient({ clientes, metricas, prazos = [], redes
     }
   }, [selectedCliente]);
 
+  // Carrega sub_redes ao entrar em modo de edição se o cliente já tem rede
+  useEffect(() => {
+    if (isEditing && editForm.rede) {
+      const rede = redes.find(r => r.nome === editForm.rede);
+      if (rede) {
+        buscarSubRedes(rede.id).then(sub => setSubRedes(sub));
+      }
+    }
+  }, [isEditing]);
+
   // Carrega sub_redes quando rede é selecionada
   const handleRedeChange = async (redeNome: string) => {
     setEditForm(f => ({ ...f, rede: redeNome, sub_rede: '' }));
