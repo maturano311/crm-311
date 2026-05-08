@@ -1,9 +1,20 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Users, AlertCircle, MapPin, X, Phone, Search, Eye, Share2, DollarSign, FileText, ChevronLeft, Calendar, ShoppingCart, Navigation, Pencil } from 'lucide-react';
 import { registrarVisita, buscarHistoricoVisitas, atualizarParceiro } from '../actions/parceiros';
 import Link from 'next/link';
+
+const STORAGE_KEY = 'parceiros_visitados_semana';
+
+function getMondayStr() {
+  const d = new Date();
+  const day = d.getDay(); // 0=Dom, 1=Seg...
+  const diff = day === 0 ? -6 : 1 - day; // volta para a segunda-feira
+  const seg = new Date(d);
+  seg.setDate(d.getDate() + diff);
+  return seg.toISOString().slice(0, 10); // ex: "2026-05-04"
+}
 
 const SEQUENCIAS = [
   { label: 'Sequência 1', regioes: ['1200', '1205', '1210'] },
@@ -78,6 +89,29 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
   const [ordemRota, setOrdemRota] = useState<any[]>([]);
   const [visitadosIds, setVisitadosIds] = useState<Set<number>>(new Set());
   const [visitaModal, setVisitaModal] = useState<VisitaModalState | null>(null);
+
+  // Carrega visitados da semana atual do localStorage
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const { semana, ids } = JSON.parse(raw);
+        if (semana === getMondayStr()) {
+          setVisitadosIds(new Set(ids as number[]));
+        }
+      }
+    } catch {}
+  }, []);
+
+  // Persiste visitados no localStorage sempre que mudar
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        semana: getMondayStr(),
+        ids: [...visitadosIds],
+      }));
+    } catch {}
+  }, [visitadosIds]);
   const [salvandoVisita, setSalvandoVisita] = useState(false);
   const [editModal, setEditModal] = useState<EditModalState | null>(null);
   const [salvandoEdicao, setSalvandoEdicao] = useState(false);
