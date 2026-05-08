@@ -268,6 +268,29 @@ export async function converterLeadEmParceiro(clienteId: number) {
 }
 
 // ============================================================
+// RANKING DE COMPRADORES
+// ============================================================
+export async function buscarRankingRecorrencia() {
+  const res = await pool.query(`
+    SELECT
+      p.nome_fantasia,
+      p.cod_parceiro,
+      p.perfil,
+      COUNT(*) as total_compras,
+      COUNT(*) FILTER (WHERE vp.data_visita >= date_trunc('month', CURRENT_DATE)) as compras_mes,
+      MAX(vp.data_visita) as ultima_compra,
+      ROUND(AVG(vp.valor_pedido) FILTER (WHERE vp.valor_pedido > 0), 2) as ticket_medio
+    FROM visitas_parceiro vp
+    JOIN parceiros p ON p.id = vp.parceiro_id
+    WHERE vp.comprou = true
+    GROUP BY p.id, p.nome_fantasia, p.cod_parceiro, p.perfil
+    ORDER BY total_compras DESC
+    LIMIT 10
+  `);
+  return res.rows;
+}
+
+// ============================================================
 // ATIVAR / DESATIVAR PARCEIRO
 // ============================================================
 export async function toggleAtivoParceiro(id: number, ativo: boolean) {

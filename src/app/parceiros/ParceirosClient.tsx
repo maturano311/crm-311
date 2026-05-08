@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { Users, AlertCircle, MapPin, X, Phone, Search, Eye, Share2, DollarSign, FileText, ChevronLeft, Calendar, ShoppingCart, Navigation, Pencil } from 'lucide-react';
-import { registrarVisita, buscarHistoricoVisitas, atualizarParceiro, toggleAtivoParceiro, marcarParceiroNaCampanha, buscarParticipantesCampanha } from '../actions/parceiros';
+import { registrarVisita, buscarHistoricoVisitas, atualizarParceiro, toggleAtivoParceiro, marcarParceiroNaCampanha, buscarParticipantesCampanha, buscarRankingRecorrencia } from '../actions/parceiros';
 import Link from 'next/link';
 
 const STORAGE_KEY = 'parceiros_visitados_semana';
@@ -119,9 +119,24 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
   const [salvandoVisita, setSalvandoVisita] = useState(false);
   const [editModal, setEditModal] = useState<EditModalState | null>(null);
   const [salvandoEdicao, setSalvandoEdicao] = useState(false);
+  const [rankingModal, setRankingModal] = useState(false);
+  const [rankingAba, setRankingAba] = useState<'mes' | 'recorrencia'>('mes');
+  const [rankingRecorrencia, setRankingRecorrencia] = useState<any[]>([]);
+  const [loadingRanking, setLoadingRanking] = useState(false);
   const [campanhaModal, setCampanhaModal] = useState<any | null>(null);
   const [campanhaParticipantes, setCampanhaParticipantes] = useState<Record<number, { abordado: boolean; comprou: boolean }>>({});
   const [salvandoCampanha, setSalvandoCampanha] = useState<number | null>(null);
+
+  const abrirRankingModal = async () => {
+    setRankingModal(true);
+    setRankingAba('mes');
+    setLoadingRanking(true);
+    try {
+      const rows = await buscarRankingRecorrencia();
+      setRankingRecorrencia(rows);
+    } catch { setRankingRecorrencia([]); }
+    setLoadingRanking(false);
+  };
 
   const abrirCampanhaModal = async (c: any) => {
     setCampanhaModal(c);
@@ -347,7 +362,13 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         <MetricCard icon={<Users />} title="Parceiros Ativos" value={localMetricas.total_ativos} />
         <MetricCard icon={<Eye className="text-cyan-400" />} title="Visitados (Mês)" value={localMetricas.visitados_mes} />
-        <MetricCard icon={<ShoppingCart className="text-emerald-400" />} title="Compraram (Mês)" value={localMetricas.compraram_mes} />
+        <MetricCard
+          icon={<ShoppingCart className="text-emerald-400" />}
+          title="Compraram (Mês)"
+          value={localMetricas.compraram_mes}
+          subtitle={localMetricas.visitados_mes > 0 ? `${Math.round(Number(localMetricas.compraram_mes) / Number(localMetricas.visitados_mes) * 100)}% de conversão` : undefined}
+          onClick={abrirRankingModal}
+        />
         <MetricCard icon={<AlertCircle className="text-rose-400" />} title="Sem Visita +15d" value={localMetricas.sem_visita_15d} onClick={() => { setFiltroAtrasado(f => !f); setFiltroRegiao(''); setActiveTab('todos'); }} active={filtroAtrasado} />
       </div>
 
@@ -885,6 +906,86 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
         </div>
       )}
 
+      {/* Modal de Ranking */}
+      {rankingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-[var(--card)] w-full max-w-md rounded-2xl border border-[var(--border)] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="p-5 border-b border-[var(--border)] flex justify-between items-start">
+              <div>
+                <h3 className="font-bold text-lg text-emerald-400">Ranking de Compradores</h3>
+                <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
+                  {Number(localMetricas.compraram_mes)} compradores • {localMetricas.visitados_mes > 0 ? Math.round(Number(localMetricas.compraram_mes) / Number(localMetricas.visitados_mes) * 100) : 0}% de conversão este mês
+                </p>
+              </div>
+              <button onClick={() => setRankingModal(false)} className="p-1 hover:bg-[var(--muted)] rounded-full transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Abas */}
+            <div className="flex border-b border-[var(--border)]">
+              {(['mes', 'recorrencia'] as const).map(aba => (
+                <button key={aba} onClick={() => setRankingAba(aba)}
+                  className={`flex-1 py-2.5 text-xs font-bold transition-colors border-b-2 -mb-px ${rankingAba === aba ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-[var(--muted-foreground)]'}`}>
+                  {aba === 'mes' ? '📅 Este Mês' : '🔄 Recorrência'}
+                </button>
+              ))}
+            </div>
+
+            <div className="overflow-y-auto custom-scrollbar flex-1 p-2">
+              {rankingAba === 'mes' ? (
+                (() => {
+                  const top = [...localParceiros]
+                    .filter(p => p.compras_mes > 0)
+                    .sort((a, b) => b.compras_mes - a.compras_mes)
+                    .slice(0, 10);
+                  const max = top[0]?.compras_mes || 1;
+                  return top.length === 0
+                    ? <p className="text-center text-[var(--muted-foreground)] py-8 text-sm">Nenhuma compra registrada este mês.</p>
+                    : top.map((p, i) => (
+                      <div key={p.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[var(--secondary)] transition-colors">
+                        <span className={`text-sm font-black w-6 text-center ${i === 0 ? 'text-amber-400' : i === 1 ? 'text-slate-300' : i === 2 ? 'text-amber-700' : 'text-[var(--muted-foreground)]'}`}>
+                          {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}º`}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold truncate">{p.nome_fantasia}</p>
+                          <div className="mt-1 h-1.5 rounded-full bg-[var(--secondary)] overflow-hidden">
+                            <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${(p.compras_mes / max) * 100}%` }} />
+                          </div>
+                        </div>
+                        <span className="text-sm font-bold text-emerald-400 flex-shrink-0">{p.compras_mes}x</span>
+                      </div>
+                    ));
+                })()
+              ) : loadingRanking ? (
+                <p className="text-center text-[var(--muted-foreground)] py-8 text-sm">Carregando...</p>
+              ) : rankingRecorrencia.length === 0 ? (
+                <p className="text-center text-[var(--muted-foreground)] py-8 text-sm">Nenhum histórico de compras.</p>
+              ) : (() => {
+                const max = Number(rankingRecorrencia[0]?.total_compras) || 1;
+                return rankingRecorrencia.map((p, i) => (
+                  <div key={i} className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[var(--secondary)] transition-colors">
+                    <span className={`text-sm font-black w-6 text-center ${i === 0 ? 'text-amber-400' : i === 1 ? 'text-slate-300' : i === 2 ? 'text-amber-700' : 'text-[var(--muted-foreground)]'}`}>
+                      {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}º`}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold truncate">{p.nome_fantasia}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <div className="flex-1 h-1.5 rounded-full bg-[var(--secondary)] overflow-hidden">
+                          <div className="h-full bg-cyan-500 rounded-full" style={{ width: `${(Number(p.total_compras) / max) * 100}%` }} />
+                        </div>
+                        {p.ticket_medio && <span className="text-[10px] text-[var(--muted-foreground)]">R${Number(p.ticket_medio).toFixed(0)}/pedido</span>}
+                      </div>
+                    </div>
+                    <span className="text-sm font-bold text-cyan-400 flex-shrink-0">{p.total_compras}x</span>
+                  </div>
+                ));
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal de Campanha */}
       {campanhaModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
@@ -1053,10 +1154,10 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
   );
 }
 
-function MetricCard({ title, value, icon, onClick, active }: { title: string; value: string | number; icon: React.ReactNode; onClick?: () => void; active?: boolean }) {
+function MetricCard({ title, value, icon, onClick, active, subtitle }: { title: string; value: string | number; icon: React.ReactNode; onClick?: () => void; active?: boolean; subtitle?: string }) {
   return (
     <div
-      className={`glass-panel rounded-xl p-4 relative overflow-hidden transition-colors ${onClick ? 'cursor-pointer hover:border-rose-400/50' : ''} ${active ? 'border border-rose-500/60 bg-rose-500/5' : ''}`}
+      className={`glass-panel rounded-xl p-4 relative overflow-hidden transition-colors ${onClick ? 'cursor-pointer hover:border-emerald-400/30' : ''} ${active ? 'border border-rose-500/60 bg-rose-500/5' : ''}`}
       onClick={onClick}
     >
       <div className="flex items-center gap-2 mb-1">
@@ -1064,6 +1165,7 @@ function MetricCard({ title, value, icon, onClick, active }: { title: string; va
         <h3 className="font-bold text-[var(--muted-foreground)] uppercase tracking-wider text-[10px]">{title}{active && <span className="ml-1 text-rose-400">●</span>}</h3>
       </div>
       <p className="text-2xl md:text-3xl font-bold">{value}</p>
+      {subtitle && <p className="text-[10px] text-emerald-400 font-bold mt-1">{subtitle}</p>}
     </div>
   );
 }
