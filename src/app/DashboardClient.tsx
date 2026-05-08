@@ -121,9 +121,9 @@ export default function DashboardClient({ clientes, metricas, prazos = [], redes
         if (cliente.email_xml) url.searchParams.append('prefill_EMAIL XML', cliente.email_xml);
         if (cliente.email_financeiro) url.searchParams.append('prefill_EMAIL FINANCEIRO', cliente.email_financeiro);
         if (cliente.telefone) url.searchParams.append('prefill_TELEFONE', cliente.telefone);
-        if (cliente.rede) url.searchParams.append('prefill_REDE', cliente.rede);
+        if (cliente.sub_rede) url.searchParams.append('prefill_REDE', cliente.sub_rede);
         if (cliente.sub_rede) url.searchParams.append('prefill_REDES E SUB REDES', cliente.sub_rede);
-        if (cliente.prazo_pagamento) url.searchParams.append('prefill_PRAZO', cliente.prazo_pagamento);
+        if (cliente.prazo_pagamento) url.searchParams.append('prefill_PRAZO', cliente.prazo_pagamento.replace('A PRAZO ', 'A PRAZO - '));
         if (cliente.observacao_atendimento) url.searchParams.append('prefill_OBSERVAÇÕES', cliente.observacao_atendimento);
 
         window.open(url.toString(), '_blank');
