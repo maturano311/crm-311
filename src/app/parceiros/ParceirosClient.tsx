@@ -124,6 +124,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
   const [rankingRecorrencia, setRankingRecorrencia] = useState<any[]>([]);
   const [loadingRanking, setLoadingRanking] = useState(false);
   const [campanhaModal, setCampanhaModal] = useState<any | null>(null);
+  const [buscaCampanha, setBuscaCampanha] = useState('');
   const [campanhaParticipantes, setCampanhaParticipantes] = useState<Record<number, { abordado: boolean; comprou: boolean }>>({});
   const [salvandoCampanha, setSalvandoCampanha] = useState<number | null>(null);
 
@@ -141,6 +142,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
   const abrirCampanhaModal = async (c: any) => {
     setCampanhaModal(c);
     setCampanhaParticipantes({});
+    setBuscaCampanha('');
     const rows = await buscarParticipantesCampanha(c.id);
     const map: Record<number, { abordado: boolean; comprou: boolean }> = {};
     rows.forEach((r: any) => { map[r.parceiro_id] = { abordado: r.abordado, comprou: r.comprou }; });
@@ -1008,8 +1010,20 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
                 <X className="w-4 h-4" />
               </button>
             </div>
+            <div className="px-4 py-2 border-b border-[var(--border)]">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--muted-foreground)]" />
+                <input
+                  type="text"
+                  placeholder="Buscar parceiro..."
+                  value={buscaCampanha}
+                  onChange={e => setBuscaCampanha(e.target.value)}
+                  className="w-full bg-[var(--background)] border border-[var(--border)] rounded-full py-1.5 pl-8 pr-3 text-sm focus:outline-none focus:border-amber-400 transition-colors"
+                />
+              </div>
+            </div>
             <div className="overflow-y-auto custom-scrollbar flex-1">
-              {localParceiros.map(p => {
+              {localParceiros.filter(p => !buscaCampanha || (p.nome_fantasia || '').toLowerCase().includes(buscaCampanha.toLowerCase())).map(p => {
                 const status = campanhaParticipantes[p.id];
                 const loading = salvandoCampanha === p.id;
                 return (
