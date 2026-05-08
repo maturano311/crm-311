@@ -1,6 +1,8 @@
 import pool from '@/lib/db';
 import DashboardClient from './DashboardClient';
 
+export const dynamic = 'force-dynamic';
+
 export default async function Home() {
   let clientes: any[] = [];
   let metricas = { clientes_ativos: 0, a_prospectar: 0, prioridade_alta: 0 };
