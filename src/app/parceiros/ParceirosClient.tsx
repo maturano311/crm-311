@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { Users, AlertCircle, MapPin, X, Phone, Search, Eye, Share2, DollarSign, FileText, ChevronLeft, Calendar, ShoppingCart, Navigation, Pencil } from 'lucide-react';
-import { registrarVisita, buscarHistoricoVisitas, atualizarParceiro, toggleAtivoParceiro } from '../actions/parceiros';
+import { registrarVisita, buscarHistoricoVisitas, atualizarParceiro, toggleAtivoParceiro, marcarParceiroNaCampanha, buscarParticipantesCampanha } from '../actions/parceiros';
 import Link from 'next/link';
 
 const STORAGE_KEY = 'parceiros_visitados_semana';
@@ -118,6 +118,29 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
   const [salvandoVisita, setSalvandoVisita] = useState(false);
   const [editModal, setEditModal] = useState<EditModalState | null>(null);
   const [salvandoEdicao, setSalvandoEdicao] = useState(false);
+  const [campanhaModal, setCampanhaModal] = useState<any | null>(null);
+  const [campanhaParticipantes, setCampanhaParticipantes] = useState<Record<number, { abordado: boolean; comprou: boolean }>>({});
+  const [salvandoCampanha, setSalvandoCampanha] = useState<number | null>(null);
+
+  const abrirCampanhaModal = async (c: any) => {
+    setCampanhaModal(c);
+    setCampanhaParticipantes({});
+    const rows = await buscarParticipantesCampanha(c.id);
+    const map: Record<number, { abordado: boolean; comprou: boolean }> = {};
+    rows.forEach((r: any) => { map[r.parceiro_id] = { abordado: r.abordado, comprou: r.comprou }; });
+    setCampanhaParticipantes(map);
+  };
+
+  const toggleCampanhaParceiro = async (parceiroId: number, campo: 'abordado' | 'comprou') => {
+    if (!campanhaModal) return;
+    setSalvandoCampanha(parceiroId);
+    const atual = campanhaParticipantes[parceiroId] || { abordado: false, comprou: false };
+    const novoComprou = campo === 'comprou' ? !atual.comprou : atual.comprou;
+    const novoAbordado = campo === 'abordado' ? !atual.abordado : (novoComprou ? true : atual.abordado);
+    await marcarParceiroNaCampanha(campanhaModal.id, parceiroId, novoComprou);
+    setCampanhaParticipantes(prev => ({ ...prev, [parceiroId]: { abordado: novoAbordado, comprou: novoComprou } }));
+    setSalvandoCampanha(null);
+  };
 
   const abrirEditModal = (p: any, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -200,8 +223,11 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
 
   const listaMostrada = useMemo(() => {
     const base = rotaOrganizada ? ordemRota : parceirosVisiveis;
+    // Na aba "Todos" mostra todos (visitados aparecem com estilo diferente)
+    if (activeTab === 'todos') return base;
+    // Nas abas de sequência esconde os já visitados
     return base.filter(p => !visitadosIds.has(p.id));
-  }, [rotaOrganizada, ordemRota, parceirosVisiveis, visitadosIds]);
+  }, [rotaOrganizada, ordemRota, parceirosVisiveis, visitadosIds, activeTab]);
 
   const handleTabChange = (tab: 'todos' | number) => {
     setActiveTab(tab);
@@ -327,7 +353,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
       {campanhas.length > 0 && (
         <div className="flex overflow-x-auto gap-3 pb-2 scrollbar-hide">
           {campanhas.map((c: any) => (
-            <div key={c.id} className={`flex-shrink-0 glass-panel rounded-xl p-4 border min-w-[220px] ${
+            <div key={c.id} onClick={() => abrirCampanhaModal(c)} className={`flex-shrink-0 glass-panel rounded-xl p-4 border min-w-[220px] cursor-pointer hover:border-amber-400/60 transition-colors ${
               c.dias_restantes <= c.dias_antecedencia && c.dias_restantes >= 0
                 ? 'border-amber-500/50 bg-amber-500/5'
                 : 'border-[var(--border)]'
@@ -379,7 +405,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
                 : 'border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
             }`}
           >
-            Todos ({parcFiltrados.filter(p => !visitadosIds.has(p.id)).length})
+            Todos ({parcFiltrados.length})
           </button>
           {SEQUENCIAS.map((seq, i) => {
             const count = parcFiltrados.filter(p => { const r = Number(p.regiao); return !isNaN(r) && r >= seq.min && r <= seq.max && !visitadosIds.has(p.id); }).length;
@@ -471,10 +497,16 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
                 : <p className="text-[var(--muted-foreground)]">Nenhum parceiro encontrado.</p>
               }
             </div>
-          ) : listaMostrada.map((p, index) => (
+          ) : listaMostrada.map((p, index) => {
+            const foiVisitado = visitadosIds.has(p.id);
+            return (
             <div
               key={p.id}
-              className="relative bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 hover:border-cyan-400/50 transition-colors cursor-pointer overflow-hidden"
+              className={`relative bg-[var(--card)] border rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 transition-colors cursor-pointer overflow-hidden ${
+                foiVisitado
+                  ? 'border-emerald-500/20 opacity-60 hover:opacity-80'
+                  : 'border-[var(--border)] hover:border-cyan-400/50'
+              }`}
               onClick={() => abrirDossie(p)}
             >
               <div className={`absolute left-0 top-0 bottom-0 w-1 ${indicadorCor(p.dias_sem_visita)}`} />
@@ -552,7 +584,8 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
                 </button>
               </div>
             </div>
-          ))}
+          );
+          })}
         </div>
       </div>
 
@@ -846,6 +879,70 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
             >
               {editModal.parceiro.ativo ? 'Desativar Parceiro' : 'Ativar Parceiro'}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Campanha */}
+      {campanhaModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-[var(--card)] w-full max-w-lg rounded-2xl border border-[var(--border)] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="p-5 border-b border-[var(--border)] flex justify-between items-start">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Calendar className="w-4 h-4 text-amber-400" />
+                  <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">
+                    {campanhaModal.dias_restantes > 0 ? `${campanhaModal.dias_restantes}d restantes` : campanhaModal.dias_restantes === 0 ? 'HOJE!' : 'Encerrada'}
+                  </span>
+                </div>
+                <h3 className="font-bold text-lg">{campanhaModal.nome}</h3>
+                <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
+                  {Object.values(campanhaParticipantes).filter((v: any) => v.abordado).length} abordados •{' '}
+                  {Object.values(campanhaParticipantes).filter((v: any) => v.comprou).length} compraram
+                </p>
+              </div>
+              <button onClick={() => setCampanhaModal(null)} className="p-1 hover:bg-[var(--muted)] rounded-full transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="overflow-y-auto custom-scrollbar flex-1">
+              {localParceiros.map(p => {
+                const status = campanhaParticipantes[p.id];
+                const loading = salvandoCampanha === p.id;
+                return (
+                  <div key={p.id} className="flex items-center justify-between px-5 py-3 border-b border-[var(--border)] last:border-0">
+                    <div className="flex-1 min-w-0 mr-3">
+                      <p className="text-sm font-bold truncate">{p.nome_fantasia}</p>
+                      <p className="text-xs text-[var(--muted-foreground)]">{p.bairro} • {p.perfil || p.cidade}</p>
+                    </div>
+                    <div className="flex gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => toggleCampanhaParceiro(p.id, 'abordado')}
+                        disabled={loading}
+                        className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition-all disabled:opacity-50 ${
+                          status?.abordado
+                            ? 'bg-amber-500/20 border-amber-500/50 text-amber-400'
+                            : 'border-[var(--border)] text-[var(--muted-foreground)] hover:border-amber-400 hover:text-amber-400'
+                        }`}
+                      >
+                        Abordado
+                      </button>
+                      <button
+                        onClick={() => toggleCampanhaParceiro(p.id, 'comprou')}
+                        disabled={loading}
+                        className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition-all disabled:opacity-50 ${
+                          status?.comprou
+                            ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
+                            : 'border-[var(--border)] text-[var(--muted-foreground)] hover:border-emerald-400 hover:text-emerald-400'
+                        }`}
+                      >
+                        Comprou
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}

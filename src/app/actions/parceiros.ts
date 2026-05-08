@@ -142,6 +142,14 @@ export async function buscarCampanhasAtivas() {
   return res.rows;
 }
 
+export async function buscarParticipantesCampanha(campanhaId: number) {
+  const res = await pool.query(
+    'SELECT parceiro_id, abordado, comprou FROM campanha_parceiros WHERE campanha_id = $1',
+    [campanhaId]
+  );
+  return res.rows;
+}
+
 export async function marcarParceiroNaCampanha(campanhaId: number, parceiroId: number, comprou: boolean) {
   try {
     await pool.query(`
