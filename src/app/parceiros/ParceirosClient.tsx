@@ -17,8 +17,8 @@ function getMondayStr() {
 }
 
 const SEQUENCIAS = [
-  { label: 'Sequência 1', regioes: ['1200', '1205', '1210'] },
-  { label: 'Sequência 2', regioes: ['1215', '1220'] },
+  { label: 'Sequência 1', min: 1200, max: 1212 },
+  { label: 'Sequência 2', min: 1213, max: 9999 },
 ];
 
 function nearestNeighbor(partners: any[]): any[] {
@@ -192,7 +192,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
   const parceirosVisiveis = useMemo(() => {
     if (typeof activeTab !== 'number') return parcFiltrados;
     const seq = SEQUENCIAS[activeTab];
-    return parcFiltrados.filter(p => seq.regioes.includes(String(p.regiao)));
+    return parcFiltrados.filter(p => { const r = Number(p.regiao); return !isNaN(r) && r >= seq.min && r <= seq.max; });
   }, [parcFiltrados, activeTab]);
 
   const listaMostrada = useMemo(() => {
@@ -350,7 +350,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
             Todos ({parcFiltrados.filter(p => !visitadosIds.has(p.id)).length})
           </button>
           {SEQUENCIAS.map((seq, i) => {
-            const count = parcFiltrados.filter(p => seq.regioes.includes(String(p.regiao)) && !visitadosIds.has(p.id)).length;
+            const count = parcFiltrados.filter(p => { const r = Number(p.regiao); return !isNaN(r) && r >= seq.min && r <= seq.max && !visitadosIds.has(p.id); }).length;
             return (
               <button key={i}
                 onClick={() => handleTabChange(i)}
@@ -736,25 +736,15 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-wider">Perfil</label>
-                  <input type="text" value={editModal.perfil}
-                    onChange={e => setEditModal(m => m ? { ...m, perfil: e.target.value } : m)}
-                    className="w-full mt-1 bg-[var(--background)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm focus:border-cyan-400 outline-none"
-                    placeholder="ex: PADARIA"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-wider">Tabela de Preço</label>
-                  <select value={editModal.tabela_preco}
-                    onChange={e => setEditModal(m => m ? { ...m, tabela_preco: e.target.value } : m)}
-                    className="w-full mt-1 bg-[var(--background)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm focus:border-cyan-400 outline-none"
-                  >
-                    <option value="">Sem tabela</option>
-                    {tabelas.map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </div>
+              <div>
+                <label className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-wider">Tabela de Preço</label>
+                <select value={editModal.tabela_preco}
+                  onChange={e => setEditModal(m => m ? { ...m, tabela_preco: e.target.value } : m)}
+                  className="w-full mt-1 bg-[var(--background)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm focus:border-cyan-400 outline-none"
+                >
+                  <option value="">Sem tabela</option>
+                  {tabelas.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
               </div>
 
               <div>
