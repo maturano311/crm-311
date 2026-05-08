@@ -85,8 +85,10 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
   const [historicoVisitas, setHistoricoVisitas] = useState<any[]>([]);
   const [loadingHistorico, setLoadingHistorico] = useState(false);
   const [activeTab, setActiveTab] = useState<'todos' | number>('todos');
-  const [rotaOrganizada, setRotaOrganizada] = useState(false);
-  const [ordemRota, setOrdemRota] = useState<any[]>([]);
+  const [rotasPorTab, setRotasPorTab] = useState<Record<string, { organizada: boolean; ordem: any[] }>>({});
+  const tabKey = String(activeTab);
+  const rotaOrganizada = rotasPorTab[tabKey]?.organizada ?? false;
+  const ordemRota = rotasPorTab[tabKey]?.ordem ?? [];
   const [visitadosIds, setVisitadosIds] = useState<Set<number>>(new Set());
   const [visitaModal, setVisitaModal] = useState<VisitaModalState | null>(null);
 
@@ -202,13 +204,17 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
 
   const handleTabChange = (tab: 'todos' | number) => {
     setActiveTab(tab);
-    setRotaOrganizada(false);
-    setOrdemRota([]);
   };
 
   const handleOrganizarRota = () => {
-    setOrdemRota(nearestNeighbor(parceirosVisiveis.filter(p => !visitadosIds.has(p.id))));
-    setRotaOrganizada(true);
+    setRotasPorTab(prev => ({
+      ...prev,
+      [tabKey]: { organizada: true, ordem: nearestNeighbor(parceirosVisiveis.filter(p => !visitadosIds.has(p.id))) },
+    }));
+  };
+
+  const handleDesfazerRota = () => {
+    setRotasPorTab(prev => ({ ...prev, [tabKey]: { organizada: false, ordem: [] } }));
   };
 
   const abrirVisitaModal = (p: any, e: React.MouseEvent) => {
@@ -418,9 +424,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
           </div>
           {typeof activeTab === 'number' && (
             <button
-              onClick={rotaOrganizada
-                ? () => { setRotaOrganizada(false); setOrdemRota([]); }
-                : handleOrganizarRota}
+              onClick={rotaOrganizada ? handleDesfazerRota : handleOrganizarRota}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${
                 rotaOrganizada
                   ? 'bg-amber-500/20 border border-amber-500/50 text-amber-400 hover:bg-amber-500/30'
