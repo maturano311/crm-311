@@ -20,7 +20,14 @@ export default async function ParceirosPage() {
         (SELECT data_visita FROM visitas_parceiro WHERE parceiro_id = p.id AND comprou = true ORDER BY data_visita DESC LIMIT 1) as ultima_compra,
         (SELECT COUNT(*) FROM visitas_parceiro WHERE parceiro_id = p.id AND data_visita >= date_trunc('month', CURRENT_DATE))::INTEGER as visitas_mes,
         (SELECT COUNT(*) FROM visitas_parceiro WHERE parceiro_id = p.id AND comprou = true AND data_visita >= date_trunc('month', CURRENT_DATE))::INTEGER as compras_mes,
-        (SELECT (CURRENT_DATE - MAX(data_visita))::INTEGER FROM visitas_parceiro WHERE parceiro_id = p.id) as dias_sem_visita
+        (SELECT (CURRENT_DATE - MAX(data_visita))::INTEGER FROM visitas_parceiro WHERE parceiro_id = p.id) as dias_sem_visita,
+        ARRAY(
+          SELECT DISTINCT CEIL(EXTRACT(day FROM data_visita) / 7.0)::INTEGER
+          FROM visitas_parceiro
+          WHERE parceiro_id = p.id
+            AND date_trunc('month', data_visita) = date_trunc('month', CURRENT_DATE)
+          ORDER BY 1
+        ) as semanas_visitadas
       FROM parceiros p
       WHERE p.ativo = true
       ORDER BY p.regiao, p.sequencia, p.nome_fantasia

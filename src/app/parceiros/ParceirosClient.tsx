@@ -236,7 +236,14 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
       observacao: visitaModal.obs || undefined,
     });
     if (res.success) {
+      const semanaHoje = Math.ceil(new Date().getDate() / 7);
       setVisitadosIds(prev => new Set([...prev, visitaModal.parceiro.id]));
+      setLocalParceiros(prev => prev.map(lp => {
+        if (lp.id !== visitaModal.parceiro.id) return lp;
+        const semanas = new Set<number>(lp.semanas_visitadas || []);
+        semanas.add(semanaHoje);
+        return { ...lp, semanas_visitadas: [...semanas] };
+      }));
       setVisitaModal(null);
     } else {
       alert('Erro ao registrar visita.');
@@ -253,6 +260,10 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
     } catch { setHistoricoVisitas([]); }
     setLoadingHistorico(false);
   };
+
+  const hoje = new Date();
+  const semanaAtual = Math.ceil(hoje.getDate() / 7);
+  const totalSemanas = Math.ceil(new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate() / 7);
 
   const indicadorCor = (dias: number | null) => {
     if (dias === null || dias === undefined) return 'bg-slate-600';
@@ -477,6 +488,21 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
                     {p.perfil && <span className="text-[10px] bg-cyan-500/10 text-cyan-400 px-2 py-0.5 rounded-full font-medium">{p.perfil}</span>}
                     <span className="text-[10px] text-[var(--muted-foreground)]">{indicadorTexto(p.dias_sem_visita)}</span>
                     {p.compras_mes > 0 && <span className="text-[10px] text-emerald-400">✓ {p.compras_mes} compra(s) no mês</span>}
+                  </div>
+                  <div className="flex gap-1 mt-1.5">
+                    {Array.from({ length: totalSemanas }, (_, i) => i + 1).map(s => {
+                      const visitou = (p.semanas_visitadas || []).includes(s);
+                      const atual = s === semanaAtual;
+                      return (
+                        <span key={s} className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                          visitou
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                            : atual
+                            ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                            : 'bg-[var(--secondary)] text-[var(--muted-foreground)]'
+                        }`}>S{s}</span>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
