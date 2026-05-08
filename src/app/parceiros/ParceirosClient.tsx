@@ -82,6 +82,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
   const [localMetricas, setLocalMetricas] = useState(metricas);
   const [busca, setBusca] = useState('');
   const [filtroRegiao, setFiltroRegiao] = useState('');
+  const [filtroAtrasado, setFiltroAtrasado] = useState(false);
   const [selectedParceiro, setSelectedParceiro] = useState<any | null>(null);
   const [historicoVisitas, setHistoricoVisitas] = useState<any[]>([]);
   const [loadingHistorico, setLoadingHistorico] = useState(false);
@@ -209,11 +210,12 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
 
   const parcFiltrados = useMemo(() => {
     return localParceiros.filter(p => {
-      if (busca && !p.nome_fantasia.toLowerCase().includes(busca.toLowerCase())) return false;
+      if (busca && !(p.nome_fantasia || '').toLowerCase().includes(busca.toLowerCase())) return false;
       if (filtroRegiao && p.regiao !== filtroRegiao) return false;
+      if (filtroAtrasado && !(p.dias_sem_visita === null || p.dias_sem_visita > 15)) return false;
       return true;
     });
-  }, [localParceiros, busca, filtroRegiao]);
+  }, [localParceiros, busca, filtroRegiao, filtroAtrasado]);
 
   const parceirosVisiveis = useMemo(() => {
     if (typeof activeTab !== 'number') return parcFiltrados;
@@ -346,7 +348,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
         <MetricCard icon={<Users />} title="Parceiros Ativos" value={localMetricas.total_ativos} />
         <MetricCard icon={<Eye className="text-cyan-400" />} title="Visitados (Mês)" value={localMetricas.visitados_mes} />
         <MetricCard icon={<ShoppingCart className="text-emerald-400" />} title="Compraram (Mês)" value={localMetricas.compraram_mes} />
-        <MetricCard icon={<AlertCircle className="text-rose-400" />} title="Sem Visita +15d" value={localMetricas.sem_visita_15d} />
+        <MetricCard icon={<AlertCircle className="text-rose-400" />} title="Sem Visita +15d" value={localMetricas.sem_visita_15d} onClick={() => { setFiltroAtrasado(f => !f); setFiltroRegiao(''); setActiveTab('todos'); }} active={filtroAtrasado} />
       </div>
 
       {/* Campanhas Ativas */}
@@ -1051,12 +1053,15 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
   );
 }
 
-function MetricCard({ title, value, icon }: { title: string; value: string | number; icon: React.ReactNode }) {
+function MetricCard({ title, value, icon, onClick, active }: { title: string; value: string | number; icon: React.ReactNode; onClick?: () => void; active?: boolean }) {
   return (
-    <div className="glass-panel rounded-xl p-4 relative overflow-hidden">
+    <div
+      className={`glass-panel rounded-xl p-4 relative overflow-hidden transition-colors ${onClick ? 'cursor-pointer hover:border-rose-400/50' : ''} ${active ? 'border border-rose-500/60 bg-rose-500/5' : ''}`}
+      onClick={onClick}
+    >
       <div className="flex items-center gap-2 mb-1">
         <div className="[&>svg]:w-4 [&>svg]:h-4 text-cyan-400">{icon}</div>
-        <h3 className="font-bold text-[var(--muted-foreground)] uppercase tracking-wider text-[10px]">{title}</h3>
+        <h3 className="font-bold text-[var(--muted-foreground)] uppercase tracking-wider text-[10px]">{title}{active && <span className="ml-1 text-rose-400">●</span>}</h3>
       </div>
       <p className="text-2xl md:text-3xl font-bold">{value}</p>
     </div>
