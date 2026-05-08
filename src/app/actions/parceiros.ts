@@ -173,8 +173,11 @@ export async function buscarRegioesParceiros() {
 // ============================================================
 export async function atualizarParceiro(id: number, data: {
   nome_fantasia: string;
+  cod_parceiro: number | null;
   regiao: string;
   sequencia: number | null;
+  endereco: string;
+  numero: string;
   bairro: string;
   cidade: string;
   perfil: string;
@@ -187,19 +190,22 @@ export async function atualizarParceiro(id: number, data: {
     await pool.query(`
       UPDATE parceiros SET
         nome_fantasia = $2,
-        regiao = NULLIF($3, ''),
-        sequencia = $4,
-        bairro = NULLIF($5, ''),
-        cidade = NULLIF($6, ''),
-        perfil = NULLIF($7, ''),
-        tabela_preco = NULLIF($8, ''),
-        telefone = NULLIF($9, ''),
-        obs_comercial = NULLIF($10, ''),
-        obs_loja = NULLIF($11, '')
+        cod_parceiro = CASE WHEN cod_parceiro IS NULL THEN $3 ELSE cod_parceiro END,
+        regiao = NULLIF($4, ''),
+        sequencia = $5,
+        endereco = NULLIF($6, ''),
+        numero = NULLIF($7, ''),
+        bairro = NULLIF($8, ''),
+        cidade = NULLIF($9, ''),
+        perfil = NULLIF($10, ''),
+        tabela_preco = NULLIF($11, ''),
+        telefone = NULLIF($12, ''),
+        obs_comercial = NULLIF($13, ''),
+        obs_loja = NULLIF($14, '')
       WHERE id = $1
-    `, [id, data.nome_fantasia, data.regiao, data.sequencia || null,
-        data.bairro, data.cidade, data.perfil, data.tabela_preco,
-        data.telefone, data.obs_comercial, data.obs_loja]);
+    `, [id, data.nome_fantasia, data.cod_parceiro || null, data.regiao, data.sequencia || null,
+        data.endereco, data.numero, data.bairro, data.cidade, data.perfil,
+        data.tabela_preco, data.telefone, data.obs_comercial, data.obs_loja]);
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e.message };

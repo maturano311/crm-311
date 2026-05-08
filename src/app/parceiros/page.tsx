@@ -8,6 +8,8 @@ export default async function ParceirosPage() {
   let metricas = { total_ativos: 0, visitados_mes: 0, compraram_mes: 0, sem_visita_15d: 0 };
   let regioes: string[] = [];
   let campanhas: any[] = [];
+  let tabelas: string[] = [];
+  let cidades: string[] = [];
 
   try {
     // Parceiros com subqueries de recorrência
@@ -57,6 +59,16 @@ export default async function ParceirosPage() {
     `);
     campanhas = campanhasRes.rows;
 
+    const tabelasRes = await pool.query(`
+      SELECT DISTINCT tabela_preco FROM parceiros WHERE tabela_preco IS NOT NULL ORDER BY tabela_preco
+    `);
+    tabelas = tabelasRes.rows.map((r: any) => r.tabela_preco);
+
+    const cidadesRes = await pool.query(`
+      SELECT DISTINCT cidade FROM parceiros WHERE cidade IS NOT NULL ORDER BY cidade
+    `);
+    cidades = cidadesRes.rows.map((r: any) => r.cidade);
+
   } catch (error) {
     console.error('Erro ao buscar dados de parceiros:', error);
   }
@@ -68,6 +80,8 @@ export default async function ParceirosPage() {
         metricas={metricas}
         regioes={regioes}
         campanhas={campanhas}
+        tabelas={tabelas}
+        cidades={cidades}
       />
     </main>
   );

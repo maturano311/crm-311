@@ -45,8 +45,11 @@ interface VisitaModalState {
 interface EditModalState {
   parceiro: any;
   nome_fantasia: string;
+  cod_parceiro: string;
   regiao: string;
   sequencia: string;
+  endereco: string;
+  numero: string;
   bairro: string;
   cidade: string;
   perfil: string;
@@ -56,11 +59,13 @@ interface EditModalState {
   obs_loja: string;
 }
 
-export default function ParceirosClient({ parceiros, metricas, regioes, campanhas }: {
+export default function ParceirosClient({ parceiros, metricas, regioes, campanhas, tabelas = [], cidades = [] }: {
   parceiros: any[];
   metricas: any;
   regioes: string[];
   campanhas: any[];
+  tabelas?: string[];
+  cidades?: string[];
 }) {
   const [localParceiros, setLocalParceiros] = useState<any[]>(parceiros);
   const [busca, setBusca] = useState('');
@@ -82,8 +87,11 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
     setEditModal({
       parceiro: p,
       nome_fantasia: p.nome_fantasia || '',
+      cod_parceiro: p.cod_parceiro != null ? String(p.cod_parceiro) : '',
       regiao: p.regiao || '',
       sequencia: p.sequencia != null ? String(p.sequencia) : '',
+      endereco: p.endereco || '',
+      numero: p.numero || '',
       bairro: p.bairro || '',
       cidade: p.cidade || '',
       perfil: p.perfil || '',
@@ -99,8 +107,11 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
     setSalvandoEdicao(true);
     const res = await atualizarParceiro(editModal.parceiro.id, {
       nome_fantasia: editModal.nome_fantasia,
+      cod_parceiro: editModal.cod_parceiro ? parseInt(editModal.cod_parceiro) : null,
       regiao: editModal.regiao,
       sequencia: editModal.sequencia ? parseInt(editModal.sequencia) : null,
+      endereco: editModal.endereco,
+      numero: editModal.numero,
       bairro: editModal.bairro,
       cidade: editModal.cidade,
       perfil: editModal.perfil,
@@ -110,11 +121,15 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
       obs_loja: editModal.obs_loja,
     });
     if (res.success) {
+      const codFinal = editModal.parceiro.cod_parceiro ?? (editModal.cod_parceiro ? parseInt(editModal.cod_parceiro) : null);
       const updated = {
         ...editModal.parceiro,
         nome_fantasia: editModal.nome_fantasia,
+        cod_parceiro: codFinal,
         regiao: editModal.regiao || null,
         sequencia: editModal.sequencia ? parseInt(editModal.sequencia) : null,
+        endereco: editModal.endereco || null,
+        numero: editModal.numero || null,
         bairro: editModal.bairro || null,
         cidade: editModal.cidade || null,
         perfil: editModal.perfil || null,
@@ -595,6 +610,28 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
             </div>
 
             <div className="space-y-3">
+              {/* Código — editável só se ainda não tem */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-wider">
+                    Cód. Parceiro {editModal.parceiro.cod_parceiro && <span className="text-amber-400 normal-case font-normal">(fixo)</span>}
+                  </label>
+                  <input type="number" value={editModal.cod_parceiro}
+                    onChange={e => setEditModal(m => m ? { ...m, cod_parceiro: e.target.value } : m)}
+                    disabled={!!editModal.parceiro.cod_parceiro}
+                    className="w-full mt-1 bg-[var(--background)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm focus:border-amber-400 outline-none disabled:opacity-50 disabled:cursor-not-allowed font-mono"
+                    placeholder="Código"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-wider">Telefone</label>
+                  <input type="text" value={editModal.telefone}
+                    onChange={e => setEditModal(m => m ? { ...m, telefone: e.target.value } : m)}
+                    className="w-full mt-1 bg-[var(--background)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm focus:border-cyan-400 outline-none"
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-wider">Nome Fantasia</label>
                 <input type="text" value={editModal.nome_fantasia}
@@ -624,6 +661,26 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
                 </div>
               </div>
 
+              {/* Endereço */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2">
+                  <label className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-wider">Rua / Endereço</label>
+                  <input type="text" value={editModal.endereco}
+                    onChange={e => setEditModal(m => m ? { ...m, endereco: e.target.value } : m)}
+                    className="w-full mt-1 bg-[var(--background)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm focus:border-cyan-400 outline-none"
+                    placeholder="Nome da rua"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-wider">Número</label>
+                  <input type="text" value={editModal.numero}
+                    onChange={e => setEditModal(m => m ? { ...m, numero: e.target.value } : m)}
+                    className="w-full mt-1 bg-[var(--background)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm focus:border-cyan-400 outline-none"
+                    placeholder="Nº"
+                  />
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-wider">Bairro</label>
@@ -634,19 +691,15 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
                 </div>
                 <div>
                   <label className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-wider">Cidade</label>
-                  <input type="text" value={editModal.cidade}
+                  <input list="lista-cidades" value={editModal.cidade}
                     onChange={e => setEditModal(m => m ? { ...m, cidade: e.target.value } : m)}
                     className="w-full mt-1 bg-[var(--background)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm focus:border-cyan-400 outline-none"
+                    placeholder="Selecione ou digite"
                   />
+                  <datalist id="lista-cidades">
+                    {cidades.map(c => <option key={c} value={c} />)}
+                  </datalist>
                 </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-wider">Telefone</label>
-                <input type="text" value={editModal.telefone}
-                  onChange={e => setEditModal(m => m ? { ...m, telefone: e.target.value } : m)}
-                  className="w-full mt-1 bg-[var(--background)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm focus:border-cyan-400 outline-none"
-                />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -660,10 +713,13 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
                 </div>
                 <div>
                   <label className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-wider">Tabela de Preço</label>
-                  <input type="text" value={editModal.tabela_preco}
+                  <select value={editModal.tabela_preco}
                     onChange={e => setEditModal(m => m ? { ...m, tabela_preco: e.target.value } : m)}
                     className="w-full mt-1 bg-[var(--background)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm focus:border-cyan-400 outline-none"
-                  />
+                  >
+                    <option value="">Sem tabela</option>
+                    {tabelas.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
                 </div>
               </div>
 
