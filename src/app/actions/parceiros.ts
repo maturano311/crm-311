@@ -258,3 +258,15 @@ export async function converterLeadEmParceiro(clienteId: number) {
     return { success: false, error: e.message };
   }
 }
+
+// ============================================================
+// ATIVAR / DESATIVAR PARCEIRO
+// ============================================================
+export async function toggleAtivoParceiro(id: number, ativo: boolean) {
+  try {
+    await pool.query('UPDATE parceiros SET ativo = $2 WHERE id = $1', [id, ativo]);
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}

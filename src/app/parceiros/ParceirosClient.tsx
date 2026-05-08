@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { Users, AlertCircle, MapPin, X, Phone, Search, Eye, Share2, DollarSign, FileText, ChevronLeft, Calendar, ShoppingCart, Navigation, Pencil } from 'lucide-react';
-import { registrarVisita, buscarHistoricoVisitas, atualizarParceiro } from '../actions/parceiros';
+import { registrarVisita, buscarHistoricoVisitas, atualizarParceiro, toggleAtivoParceiro } from '../actions/parceiros';
 import Link from 'next/link';
 
 const STORAGE_KEY = 'parceiros_visitados_semana';
@@ -79,6 +79,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
   cidades?: string[];
 }) {
   const [localParceiros, setLocalParceiros] = useState<any[]>(parceiros);
+  const [localMetricas, setLocalMetricas] = useState(metricas);
   const [busca, setBusca] = useState('');
   const [filtroRegiao, setFiltroRegiao] = useState('');
   const [selectedParceiro, setSelectedParceiro] = useState<any | null>(null);
@@ -237,12 +238,26 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
     });
     if (res.success) {
       const semanaHoje = Math.ceil(new Date().getDate() / 7);
+      const eraPrimeiraVisitaMes = !visitaModal.parceiro.visitas_mes || visitaModal.parceiro.visitas_mes === 0;
       setVisitadosIds(prev => new Set([...prev, visitaModal.parceiro.id]));
       setLocalParceiros(prev => prev.map(lp => {
         if (lp.id !== visitaModal.parceiro.id) return lp;
         const semanas = new Set<number>(lp.semanas_visitadas || []);
         semanas.add(semanaHoje);
-        return { ...lp, semanas_visitadas: [...semanas] };
+        return {
+          ...lp,
+          semanas_visitadas: [...semanas],
+          dias_sem_visita: 0,
+          visitas_mes: (lp.visitas_mes || 0) + 1,
+          compras_mes: visitaModal.comprou ? (lp.compras_mes || 0) + 1 : lp.compras_mes,
+          ultima_visita: new Date().toISOString(),
+        };
+      }));
+      setLocalMetricas((prev: any) => ({
+        ...prev,
+        visitados_mes: eraPrimeiraVisitaMes ? Number(prev.visitados_mes) + 1 : Number(prev.visitados_mes),
+        compraram_mes: visitaModal.comprou ? Number(prev.compraram_mes) + 1 : Number(prev.compraram_mes),
+        sem_visita_15d: eraPrimeiraVisitaMes ? Math.max(0, Number(prev.sem_visita_15d) - 1) : Number(prev.sem_visita_15d),
       }));
       setVisitaModal(null);
     } else {
@@ -302,10 +317,10 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
 
       {/* Métricas */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-        <MetricCard icon={<Users />} title="Parceiros Ativos" value={metricas.total_ativos} />
-        <MetricCard icon={<Eye className="text-cyan-400" />} title="Visitados (Mês)" value={metricas.visitados_mes} />
-        <MetricCard icon={<ShoppingCart className="text-emerald-400" />} title="Compraram (Mês)" value={metricas.compraram_mes} />
-        <MetricCard icon={<AlertCircle className="text-rose-400" />} title="Sem Visita +15d" value={metricas.sem_visita_15d} />
+        <MetricCard icon={<Users />} title="Parceiros Ativos" value={localMetricas.total_ativos} />
+        <MetricCard icon={<Eye className="text-cyan-400" />} title="Visitados (Mês)" value={localMetricas.visitados_mes} />
+        <MetricCard icon={<ShoppingCart className="text-emerald-400" />} title="Compraram (Mês)" value={localMetricas.compraram_mes} />
+        <MetricCard icon={<AlertCircle className="text-rose-400" />} title="Sem Visita +15d" value={localMetricas.sem_visita_15d} />
       </div>
 
       {/* Campanhas Ativas */}
@@ -808,6 +823,29 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
                 {salvandoEdicao ? 'Salvando...' : 'Salvar'}
               </button>
             </div>
+            <button
+              onClick={async () => {
+                const novoAtivo = !editModal.parceiro.ativo;
+                const acao = novoAtivo ? 'ativar' : 'desativar';
+                if (!confirm(`Confirmar ${acao} este parceiro?`)) return;
+                const res = await toggleAtivoParceiro(editModal.parceiro.id, novoAtivo);
+                if (res.success) {
+                  setLocalParceiros(prev => prev.filter(lp => lp.id !== editModal.parceiro.id));
+                  setLocalMetricas((prev: any) => ({
+                    ...prev,
+                    total_ativos: Number(prev.total_ativos) + (novoAtivo ? 1 : -1),
+                  }));
+                  setEditModal(null);
+                }
+              }}
+              className={`w-full py-2 rounded-lg text-xs font-bold border transition-all mt-1 ${
+                editModal.parceiro.ativo
+                  ? 'border-rose-500/30 text-rose-400 hover:bg-rose-500/10'
+                  : 'border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10'
+              }`}
+            >
+              {editModal.parceiro.ativo ? 'Desativar Parceiro' : 'Ativar Parceiro'}
+            </button>
           </div>
         </div>
       )}
