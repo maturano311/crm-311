@@ -5,6 +5,7 @@ import { Users, TrendingUp, AlertCircle, MapPin, CheckCircle, RefreshCcw, X, Pho
 import { updateClienteStatus, marcarVisita, salvarEdicaoCliente, appendNotaAtendimento, agendarRevisita, marcarComoClienteBase } from './actions';
 import { reverseGeocode, adicionarLeadManual } from './actions/radar';
 import { buscarSubRedes } from './actions/tabelas';
+import { converterLeadEmParceiro } from './actions/parceiros';
 import Link from 'next/link';
 
 export default function DashboardClient({ clientes, metricas, prazos = [], redes = [] }: { 
@@ -105,8 +106,11 @@ export default function DashboardClient({ clientes, metricas, prazos = [], redes
     await updateClienteStatus(id, newStatus);
     setLoadingId(null);
 
-    // Se acabou de fechar o cliente, abre o Airtable preenchido
+    // Se acabou de fechar o cliente, converte em parceiro e abre o Airtable
     if (newStatus === 'Cliente') {
+      // Converter lead em parceiro automaticamente
+      await converterLeadEmParceiro(id);
+
       const cliente = clientes.find(c => c.id === id);
       if (cliente) {
         const url = new URL('https://airtable.com/appJfkS4V90ZR31Gd/pag2NohdvoypNSgjc/form');
@@ -295,6 +299,9 @@ export default function DashboardClient({ clientes, metricas, prazos = [], redes
         </div>
         
         <div className="flex items-center gap-2 flex-wrap">
+          <Link href="/parceiros" className="magnetic-button flex items-center gap-2 bg-[var(--card)] border border-cyan-500 text-cyan-400 px-4 py-2 rounded-full font-bold hover:bg-cyan-500 hover:text-black transition-all">
+            <Users className="w-4 h-4" /> Parceiros
+          </Link>
           <Link href="/rota" className="magnetic-button flex items-center gap-2 bg-[var(--card)] border border-amber-500 text-amber-400 px-4 py-2 rounded-full font-bold hover:bg-amber-500 hover:text-black transition-all">
             <Route className="w-4 h-4" /> Minha Rota
           </Link>
