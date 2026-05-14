@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function ParceirosPage() {
   let parceiros: any[] = [];
-  let metricas = { total_ativos: 0, visitados_mes: 0, compraram_mes: 0, sem_visita_15d: 0 };
+  let metricas = { total_ativos: 0, visitados_mes: 0, compraram_mes: 0, sem_visita_15d: 0, ticket_medio_mes: null as any, ticket_medio_geral: null as any };
   let regioes: string[] = [];
   let campanhas: any[] = [];
   let tabelas: string[] = [];
@@ -19,8 +19,9 @@ export default async function ParceirosPage() {
         (SELECT data_visita FROM visitas_parceiro WHERE parceiro_id = p.id ORDER BY data_visita DESC LIMIT 1) as ultima_visita,
         (SELECT data_visita FROM visitas_parceiro WHERE parceiro_id = p.id AND comprou = true ORDER BY data_visita DESC LIMIT 1) as ultima_compra,
         (SELECT COUNT(*) FROM visitas_parceiro WHERE parceiro_id = p.id AND data_visita >= date_trunc('month', CURRENT_DATE))::INTEGER as visitas_mes,
-        (SELECT COUNT(*) FROM visitas_parceiro WHERE parceiro_id = p.id AND comprou = true AND data_visita >= date_trunc('month', CURRENT_DATE))::INTEGER as compras_mes,
+        (SELECT COUNT(*) FROM visitas_parceiro WHERE parceiro_id = p.id AND comprou = true AND status = 'confirmado' AND data_visita >= date_trunc('month', CURRENT_DATE))::INTEGER as compras_mes,
         (SELECT (CURRENT_DATE - MAX(data_visita))::INTEGER FROM visitas_parceiro WHERE parceiro_id = p.id) as dias_sem_visita,
+        (SELECT ROUND(AVG(valor_pedido)::numeric, 2) FROM visitas_parceiro WHERE parceiro_id = p.id AND comprou = true AND status = 'confirmado' AND valor_pedido > 0) as ticket_medio,
         ARRAY(
           SELECT DISTINCT CEIL(EXTRACT(day FROM data_visita) / 7.0)::INTEGER
           FROM visitas_parceiro
@@ -39,10 +40,12 @@ export default async function ParceirosPage() {
       SELECT
         (SELECT COUNT(*) FROM parceiros WHERE ativo = true) as total_ativos,
         (SELECT COUNT(DISTINCT vp.parceiro_id) FROM visitas_parceiro vp WHERE vp.data_visita >= date_trunc('month', CURRENT_DATE)) as visitados_mes,
-        (SELECT COUNT(DISTINCT vp.parceiro_id) FROM visitas_parceiro vp WHERE vp.comprou = true AND vp.data_visita >= date_trunc('month', CURRENT_DATE)) as compraram_mes,
+        (SELECT COUNT(DISTINCT vp.parceiro_id) FROM visitas_parceiro vp WHERE vp.comprou = true AND vp.status = 'confirmado' AND vp.data_visita >= date_trunc('month', CURRENT_DATE)) as compraram_mes,
         (SELECT COUNT(*) FROM parceiros p WHERE p.ativo = true AND NOT EXISTS (
           SELECT 1 FROM visitas_parceiro vp WHERE vp.parceiro_id = p.id AND vp.data_visita >= CURRENT_DATE - INTERVAL '15 days'
-        )) as sem_visita_15d
+        )) as sem_visita_15d,
+        (SELECT ROUND(AVG(valor_pedido)::numeric, 2) FROM visitas_parceiro WHERE comprou = true AND status = 'confirmado' AND valor_pedido > 0 AND data_visita >= date_trunc('month', CURRENT_DATE)) as ticket_medio_mes,
+        (SELECT ROUND(AVG(valor_pedido)::numeric, 2) FROM visitas_parceiro WHERE comprou = true AND status = 'confirmado' AND valor_pedido > 0) as ticket_medio_geral
     `);
     metricas = metricasRes.rows[0];
 

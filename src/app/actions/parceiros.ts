@@ -63,7 +63,9 @@ export async function buscarMetricasParceiros() {
       (SELECT COUNT(DISTINCT vp.parceiro_id) FROM visitas_parceiro vp WHERE vp.comprou = true AND vp.data_visita >= date_trunc('month', CURRENT_DATE)) as compraram_mes,
       (SELECT COUNT(*) FROM parceiros p WHERE p.ativo = true AND NOT EXISTS (
         SELECT 1 FROM visitas_parceiro vp WHERE vp.parceiro_id = p.id AND vp.data_visita >= CURRENT_DATE - INTERVAL '15 days'
-      )) as sem_visita_15d
+      )) as sem_visita_15d,
+      (SELECT ROUND(AVG(valor_pedido)::numeric, 2) FROM visitas_parceiro WHERE comprou = true AND valor_pedido > 0 AND data_visita >= date_trunc('month', CURRENT_DATE)) as ticket_medio_mes,
+      (SELECT ROUND(AVG(valor_pedido)::numeric, 2) FROM visitas_parceiro WHERE comprou = true AND valor_pedido > 0) as ticket_medio_geral
   `);
   return res.rows[0];
 }
@@ -94,12 +96,24 @@ export async function registrarVisita(data: {
 // ============================================================
 export async function buscarHistoricoVisitas(parceiroId: number, limite = 20) {
   const res = await pool.query(`
-    SELECT * FROM visitas_parceiro 
-    WHERE parceiro_id = $1 
-    ORDER BY data_visita DESC, criado_em DESC 
+    SELECT * FROM visitas_parceiro
+    WHERE parceiro_id = $1
+    ORDER BY data_visita DESC, criado_em DESC
     LIMIT $2
   `, [parceiroId, limite]);
   return res.rows;
+}
+
+// ============================================================
+// CANCELAR / DEVOLVER VISITA
+// ============================================================
+export async function cancelarVisita(visitaId: number, status: 'cancelado' | 'devolvido') {
+  try {
+    await pool.query('UPDATE visitas_parceiro SET status = $2 WHERE id = $1', [visitaId, status]);
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
 }
 
 // ============================================================

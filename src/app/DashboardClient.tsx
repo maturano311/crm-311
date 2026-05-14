@@ -54,7 +54,11 @@ export default function DashboardClient({ clientes, metricas, prazos = [], redes
     email_financeiro: '',
     rede: '',
     sub_rede: '',
-    prioridade: ''
+    prioridade: '',
+    endereco: '',
+    bairro: '',
+    cidade: '',
+    status: ''
   });
 
   // Atualiza o form sempre que o cliente for selecionado
@@ -72,7 +76,11 @@ export default function DashboardClient({ clientes, metricas, prazos = [], redes
         email_financeiro: selectedCliente.email_financeiro || '',
         rede: selectedCliente.rede || '',
         sub_rede: selectedCliente.sub_rede || '',
-        prioridade: selectedCliente.prioridade || ''
+        prioridade: selectedCliente.prioridade || '',
+        endereco: selectedCliente.endereco || '',
+        bairro: selectedCliente.bairro || '',
+        cidade: selectedCliente.cidade || '',
+        status: selectedCliente.status || ''
       });
       setIsEditing(false);
       setNotaRapida('');
@@ -141,7 +149,14 @@ export default function DashboardClient({ clientes, metricas, prazos = [], redes
     if (!selectedCliente) return;
     setLoadingId(selectedCliente.id);
     
-    const res = await salvarEdicaoCliente(selectedCliente.id, editForm);
+    const res = await salvarEdicaoCliente(selectedCliente.id, {
+      ...editForm,
+      // garante campos novos sempre presentes
+      endereco: editForm.endereco || null,
+      bairro: editForm.bairro || null,
+      cidade: editForm.cidade || null,
+      status: editForm.status || null,
+    });
     if (res.success) {
       setSelectedCliente({ ...selectedCliente, ...editForm });
       setIsEditing(false);
@@ -421,7 +436,7 @@ export default function DashboardClient({ clientes, metricas, prazos = [], redes
                       </span>
                       {cliente.revisitar && (
                         <span className="text-xs border border-[var(--border)] text-[var(--muted-foreground)] px-2 py-1 rounded-full font-medium flex items-center gap-1">
-                          <Clock className="w-3 h-3"/> {new Date(cliente.revisitar).toLocaleDateString('pt-BR')}
+                          <Clock className="w-3 h-3"/> {new Date(cliente.revisitar).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
                         </span>
                       )}
                     </div>
@@ -525,44 +540,81 @@ export default function DashboardClient({ clientes, metricas, prazos = [], redes
             
             <div className="p-6 overflow-y-auto space-y-6">
               
-              <div className="flex items-center justify-between mb-2">
-                {/* Prioridade — editável no cabeçalho */}
-                {isEditing ? (
-                  <div className="flex gap-1">
-                    {['ALTA', 'MEDIA', 'BAIXA'].map(p => (
-                      <button
-                        key={p}
-                        type="button"
-                        onClick={() => setEditForm({...editForm, prioridade: p})}
-                        className={`px-3 py-1 rounded-full text-xs font-bold border transition-all ${
-                          editForm.prioridade === p
-                            ? p === 'ALTA' ? 'bg-rose-500 text-white border-rose-500'
-                              : p === 'MEDIA' ? 'bg-amber-500 text-black border-amber-500'
-                              : 'bg-emerald-500 text-white border-emerald-500'
-                            : 'bg-transparent text-[var(--muted-foreground)] border-[var(--border)] hover:border-[var(--primary)]'
-                        }`}
-                      >
-                        {p}
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <span className={`text-xs font-bold px-2 py-1 rounded-full ${
-                    selectedCliente.prioridade === 'ALTA' ? 'bg-rose-500/20 text-rose-400'
-                    : selectedCliente.prioridade === 'MEDIA' ? 'bg-amber-500/20 text-amber-400'
-                    : selectedCliente.prioridade === 'BAIXA' ? 'bg-emerald-500/20 text-emerald-400'
-                    : 'bg-slate-500/20 text-slate-400'
-                  }`}>{selectedCliente.prioridade || 'Sem Prior.'}</span>
-                )}
-                {isEditing ? (
-                  <button onClick={handleSalvarEdicao} disabled={loadingId === selectedCliente.id} className="flex items-center gap-2 bg-emerald-500 text-white px-4 py-2 rounded-md font-bold text-sm hover:bg-emerald-600 transition-colors disabled:opacity-50">
-                    <Save className="w-4 h-4" /> Salvar
-                  </button>
-                ) : (
-                  <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 border border-[var(--primary)] text-[var(--primary)] px-4 py-2 rounded-md font-bold text-sm hover:bg-[var(--primary)] hover:text-black transition-colors">
-                    <Edit2 className="w-4 h-4" /> Editar Informações
-                  </button>
-                )}
+              <div className="flex flex-col gap-3 mb-2">
+                {/* Linha de Status + Prioridade */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {isEditing ? (
+                    <>
+                      {/* Status */}
+                      <div className="flex gap-1 flex-wrap">
+                        {(['Não iniciada', 'Em Andamento', 'Cliente', 'Descartado'] as const).map(s => (
+                          <button
+                            key={s}
+                            type="button"
+                            onClick={() => setEditForm({...editForm, status: s})}
+                            className={`px-3 py-1 rounded-full text-xs font-bold border transition-all ${
+                              editForm.status === s
+                                ? s === 'Cliente' ? 'bg-emerald-500 text-white border-emerald-500'
+                                  : s === 'Em Andamento' ? 'bg-amber-500 text-black border-amber-500'
+                                  : s === 'Descartado' ? 'bg-rose-500 text-white border-rose-500'
+                                  : 'bg-slate-500 text-white border-slate-500'
+                                : 'bg-transparent text-[var(--muted-foreground)] border-[var(--border)] hover:border-[var(--primary)]'
+                            }`}
+                          >
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                      selectedCliente.status === 'Cliente' ? 'bg-emerald-500/20 text-emerald-400'
+                      : selectedCliente.status === 'Em Andamento' ? 'bg-amber-500/20 text-amber-400'
+                      : selectedCliente.status === 'Descartado' ? 'bg-rose-500/20 text-rose-400'
+                      : 'bg-slate-500/20 text-slate-400'
+                    }`}>{selectedCliente.status}</span>
+                  )}
+                </div>
+
+                {/* Linha de Prioridade + Botão Editar/Salvar */}
+                <div className="flex items-center justify-between">
+                  {isEditing ? (
+                    <div className="flex gap-1">
+                      {['ALTA', 'MEDIA', 'BAIXA'].map(p => (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => setEditForm({...editForm, prioridade: p})}
+                          className={`px-3 py-1 rounded-full text-xs font-bold border transition-all ${
+                            editForm.prioridade === p
+                              ? p === 'ALTA' ? 'bg-rose-500 text-white border-rose-500'
+                                : p === 'MEDIA' ? 'bg-amber-500 text-black border-amber-500'
+                                : 'bg-emerald-500 text-white border-emerald-500'
+                              : 'bg-transparent text-[var(--muted-foreground)] border-[var(--border)] hover:border-[var(--primary)]'
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                      selectedCliente.prioridade === 'ALTA' ? 'bg-rose-500/20 text-rose-400'
+                      : selectedCliente.prioridade === 'MEDIA' ? 'bg-amber-500/20 text-amber-400'
+                      : selectedCliente.prioridade === 'BAIXA' ? 'bg-emerald-500/20 text-emerald-400'
+                      : 'bg-slate-500/20 text-slate-400'
+                    }`}>{selectedCliente.prioridade || 'Sem Prior.'}</span>
+                  )}
+                  {isEditing ? (
+                    <button onClick={handleSalvarEdicao} disabled={loadingId === selectedCliente.id} className="flex items-center gap-2 bg-emerald-500 text-white px-4 py-2 rounded-md font-bold text-sm hover:bg-emerald-600 transition-colors disabled:opacity-50">
+                      <Save className="w-4 h-4" /> Salvar
+                    </button>
+                  ) : (
+                    <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 border border-[var(--primary)] text-[var(--primary)] px-4 py-2 rounded-md font-bold text-sm hover:bg-[var(--primary)] hover:text-black transition-colors">
+                      <Edit2 className="w-4 h-4" /> Editar Informações
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Dados do Cliente */}
@@ -691,21 +743,52 @@ export default function DashboardClient({ clientes, metricas, prazos = [], redes
                 </div>
               </div>
 
-              {/* Rota e Observações */}
+              {/* Localização */}
               <div className="space-y-3 bg-[var(--muted)]/30 p-4 rounded-xl border border-[var(--border)]">
                 <h3 className="text-sm font-bold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center gap-2">
-                  <MapPin className="w-4 h-4" /> Informações de Rota
+                  <MapPin className="w-4 h-4" /> Localização
                 </h3>
-                <p className="text-sm">{selectedCliente.endereco}</p>
-                {selectedCliente.observacao_rota && (
-                  <div className="mt-2 text-sm text-emerald-400 font-medium">
-                    📍 {selectedCliente.observacao_rota}
+                {isEditing ? (
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      placeholder="Endereço (rua + número)"
+                      value={editForm.endereco}
+                      onChange={e => setEditForm({...editForm, endereco: e.target.value})}
+                      className="w-full bg-[var(--background)] border border-[var(--border)] rounded px-2 py-1 text-sm focus:border-[var(--primary)] outline-none"
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        placeholder="Bairro"
+                        value={editForm.bairro}
+                        onChange={e => setEditForm({...editForm, bairro: e.target.value})}
+                        className="w-full bg-[var(--background)] border border-[var(--border)] rounded px-2 py-1 text-sm focus:border-[var(--primary)] outline-none"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Cidade"
+                        value={editForm.cidade}
+                        onChange={e => setEditForm({...editForm, cidade: e.target.value})}
+                        className="w-full bg-[var(--background)] border border-[var(--border)] rounded px-2 py-1 text-sm focus:border-[var(--primary)] outline-none"
+                      />
+                    </div>
                   </div>
-                )}
-                {selectedCliente.google_maps_url && (
-                  <a href={selectedCliente.google_maps_url} target="_blank" rel="noreferrer" className="mt-3 inline-block text-xs bg-[var(--primary)] text-black px-3 py-1.5 rounded font-bold hover:opacity-80">
-                    Abrir no Maps
-                  </a>
+                ) : (
+                  <div className="space-y-1">
+                    <p className="text-sm">{selectedCliente.endereco || 'Sem endereço'}</p>
+                    {(selectedCliente.bairro || selectedCliente.cidade) && (
+                      <p className="text-xs text-[var(--muted-foreground)]">{[selectedCliente.bairro, selectedCliente.cidade].filter(Boolean).join(', ')}</p>
+                    )}
+                    {selectedCliente.observacao_rota && (
+                      <div className="mt-2 text-sm text-emerald-400 font-medium">📍 {selectedCliente.observacao_rota}</div>
+                    )}
+                    {selectedCliente.google_maps_url && (
+                      <a href={selectedCliente.google_maps_url} target="_blank" rel="noreferrer" className="mt-2 inline-block text-xs bg-[var(--primary)] text-black px-3 py-1.5 rounded font-bold hover:opacity-80">
+                        Abrir no Maps
+                      </a>
+                    )}
+                  </div>
                 )}
               </div>
 

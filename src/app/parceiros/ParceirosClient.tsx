@@ -2,8 +2,11 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { Users, AlertCircle, MapPin, X, Phone, Search, Eye, Share2, DollarSign, FileText, ChevronLeft, Calendar, ShoppingCart, Navigation, Pencil } from 'lucide-react';
-import { registrarVisita, buscarHistoricoVisitas, atualizarParceiro, toggleAtivoParceiro, marcarParceiroNaCampanha, buscarParticipantesCampanha, buscarRankingRecorrencia } from '../actions/parceiros';
+import { registrarVisita, buscarHistoricoVisitas, atualizarParceiro, toggleAtivoParceiro, marcarParceiroNaCampanha, buscarParticipantesCampanha, buscarRankingRecorrencia, cancelarVisita } from '../actions/parceiros';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
+
+const MapaRota = dynamic(() => import('./MapaRota'), { ssr: false });
 
 const STORAGE_KEY = 'parceiros_visitados_semana';
 
@@ -21,26 +24,62 @@ const SEQUENCIAS = [
   { label: 'Sequência 2', min: 1213, max: 9999 },
 ];
 
-function nearestNeighbor(partners: any[]): any[] {
+async function otimizarRotaORS(
+  parceiros: any[],
+  startLat: number,
+  startLng: number,
+  apiKey: string
+): Promise<any[]> {
+  const comCoords = parceiros.filter(p => p.lat && p.lng);
+  const semCoords = parceiros.filter(p => !p.lat || !p.lng);
+  if (comCoords.length === 0) return parceiros;
+
+  const jobs = comCoords.map((p, i) => ({
+    id: i + 1,
+    location: [Number(p.lng), Number(p.lat)], // ORS usa [lng, lat]
+  }));
+
+  const res = await fetch('https://api.openrouteservice.org/optimization', {
+    method: 'POST',
+    headers: { 'Authorization': apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      jobs,
+      vehicles: [{ id: 1, profile: 'driving-car', start: [startLng, startLat] }],
+    }),
+  });
+
+  if (!res.ok) throw new Error(`ORS ${res.status}`);
+  const data = await res.json();
+  const steps = (data.routes?.[0]?.steps ?? []).filter((s: any) => s.type === 'job');
+  const ordenados = steps.map((s: any) => comCoords[s.id - 1]);
+  return [...ordenados, ...semCoords];
+}
+
+function organizarRota(partners: any[], startLat?: number, startLng?: number): any[] {
   if (partners.length <= 1) return partners;
+
+  // Ordena pela sequência cadastrada (já é a ordem geográfica real)
   const sorted = [...partners].sort((a, b) => (a.sequencia ?? Infinity) - (b.sequencia ?? Infinity));
-  const withCoords = sorted.filter(p => p.lat && p.lng);
-  const withoutCoords = sorted.filter(p => !p.lat || !p.lng);
-  if (withCoords.length < 2) return sorted;
-  const route = [withCoords[0]];
-  const remaining = [...withCoords.slice(1)];
-  while (remaining.length > 0) {
-    const last = route[route.length - 1];
-    let nearestIdx = 0, nearestDist = Infinity;
-    for (let i = 0; i < remaining.length; i++) {
-      const dlat = remaining[i].lat - last.lat;
-      const dlng = remaining[i].lng - last.lng;
-      const d = dlat * dlat + dlng * dlng;
-      if (d < nearestDist) { nearestDist = d; nearestIdx = i; }
-    }
-    route.push(remaining.splice(nearestIdx, 1)[0]);
-  }
-  return [...route, ...withoutCoords];
+
+  // Sem GPS: retorna na ordem da sequência
+  if (startLat === undefined || startLng === undefined) return sorted;
+
+  // Com GPS: encontra o parceiro com coords mais próximo e rotaciona a lista a partir dele
+  const comCoords = sorted.filter(p => p.lat && p.lng);
+  if (comCoords.length === 0) return sorted;
+
+  let maisProximo = comCoords[0];
+  let menorDist = Infinity;
+  comCoords.forEach(p => {
+    const d = (Number(p.lat) - startLat) ** 2 + (Number(p.lng) - startLng) ** 2;
+    if (d < menorDist) { menorDist = d; maisProximo = p; }
+  });
+
+  const startIdx = sorted.findIndex(p => p.id === maisProximo.id);
+  if (startIdx <= 0) return sorted;
+
+  // Rotaciona: começa do mais próximo e continua na ordem da sequência
+  return [...sorted.slice(startIdx), ...sorted.slice(0, startIdx)];
 }
 
 type TipoVisita = 'FISICO' | 'TELEFONE' | 'WHATSAPP';
@@ -82,7 +121,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
   const [localMetricas, setLocalMetricas] = useState(metricas);
   const [busca, setBusca] = useState('');
   const [filtroRegiao, setFiltroRegiao] = useState('');
-  const [filtroAtrasado, setFiltroAtrasado] = useState(false);
+  const [filtroAtrasado] = useState(false);
   const [selectedParceiro, setSelectedParceiro] = useState<any | null>(null);
   const [historicoVisitas, setHistoricoVisitas] = useState<any[]>([]);
   const [loadingHistorico, setLoadingHistorico] = useState(false);
@@ -123,10 +162,14 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
   const [rankingAba, setRankingAba] = useState<'mes' | 'recorrencia'>('mes');
   const [rankingRecorrencia, setRankingRecorrencia] = useState<any[]>([]);
   const [loadingRanking, setLoadingRanking] = useState(false);
+  const [semComprasModal, setSemComprasModal] = useState(false);
   const [campanhaModal, setCampanhaModal] = useState<any | null>(null);
   const [buscaCampanha, setBuscaCampanha] = useState('');
   const [campanhaParticipantes, setCampanhaParticipantes] = useState<Record<number, { abordado: boolean; comprou: boolean }>>({});
   const [salvandoCampanha, setSalvandoCampanha] = useState<number | null>(null);
+  const [organizandoRota, setOrganizandoRota] = useState(false);
+  const [mapaAberto, setMapaAberto] = useState(false);
+  const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null);
 
   const abrirRankingModal = async () => {
     setRankingModal(true);
@@ -241,26 +284,74 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
   }, [parcFiltrados, activeTab]);
 
   const listaMostrada = useMemo(() => {
-    const base = rotaOrganizada ? ordemRota : parceirosVisiveis;
     // Na aba "Todos" mostra todos (visitados aparecem com estilo diferente)
-    if (activeTab === 'todos') return base;
-    // Nas abas de sequência esconde os já visitados
-    return base.filter(p => !visitadosIds.has(p.id));
-  }, [rotaOrganizada, ordemRota, parceirosVisiveis, visitadosIds, activeTab]);
+    if (activeTab === 'todos') return parcFiltrados;
+
+    const naoVisitados = parceirosVisiveis.filter(p => !visitadosIds.has(p.id));
+
+    if (!rotaOrganizada) return naoVisitados;
+
+    // Rota organizada: parceiros da rota (não visitados) + novos que entraram depois
+    const naRota = ordemRota.filter((p: any) => !visitadosIds.has(p.id));
+    const idsNaRota = new Set(naRota.map((p: any) => p.id));
+    const foraRota = naoVisitados.filter(p => !idsNaRota.has(p.id));
+
+    return [...naRota, ...foraRota];
+  }, [rotaOrganizada, ordemRota, parceirosVisiveis, visitadosIds, activeTab, parcFiltrados]);
 
   const handleTabChange = (tab: 'todos' | number) => {
     setActiveTab(tab);
   };
 
   const handleOrganizarRota = () => {
-    setRotasPorTab(prev => ({
-      ...prev,
-      [tabKey]: { organizada: true, ordem: nearestNeighbor(parceirosVisiveis.filter(p => !visitadosIds.has(p.id))) },
-    }));
+    const pendentes = parceirosVisiveis.filter(p => !visitadosIds.has(p.id));
+    const apiKey = process.env.NEXT_PUBLIC_ORS_API_KEY;
+
+    const aplicarLocal = (lat?: number, lng?: number) => {
+      setRotasPorTab(prev => ({
+        ...prev,
+        [tabKey]: { organizada: true, ordem: organizarRota(pendentes, lat, lng) },
+      }));
+      setOrganizandoRota(false);
+    };
+
+    const aplicarComGPS = async (lat: number, lng: number) => {
+      setUserPos({ lat, lng });
+      if (apiKey) {
+        try {
+          const ordem = await otimizarRotaORS(pendentes, lat, lng, apiKey);
+          setRotasPorTab(prev => ({ ...prev, [tabKey]: { organizada: true, ordem } }));
+          setOrganizandoRota(false);
+          return;
+        } catch {
+          // fallback para algoritmo local
+        }
+      }
+      aplicarLocal(lat, lng);
+    };
+
+    setOrganizandoRota(true);
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        pos => aplicarComGPS(pos.coords.latitude, pos.coords.longitude),
+        () => aplicarLocal(),
+        { timeout: 6000, maximumAge: 30000 }
+      );
+    } else {
+      aplicarLocal();
+    }
   };
 
   const handleDesfazerRota = () => {
     setRotasPorTab(prev => ({ ...prev, [tabKey]: { organizada: false, ordem: [] } }));
+  };
+
+  const moverNaRota = (idx: number, direcao: 'up' | 'down') => {
+    const novaLista = [...listaMostrada];
+    const swapIdx = direcao === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= novaLista.length) return;
+    [novaLista[idx], novaLista[swapIdx]] = [novaLista[swapIdx], novaLista[idx]];
+    setRotasPorTab(prev => ({ ...prev, [tabKey]: { organizada: true, ordem: novaLista } }));
   };
 
   const abrirVisitaModal = (p: any, e: React.MouseEvent) => {
@@ -311,6 +402,15 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
     setSalvandoVisita(false);
   };
 
+  const handleCancelarVisita = async (visitaId: number, status: 'cancelado' | 'devolvido') => {
+    const acao = status === 'cancelado' ? 'cancelar' : 'marcar como devolução';
+    if (!confirm(`Confirmar ${acao} este pedido? Ele sairá das métricas de compras.`)) return;
+    const res = await cancelarVisita(visitaId, status);
+    if (res.success) {
+      setHistoricoVisitas(prev => prev.map(v => v.id === visitaId ? { ...v, status } : v));
+    }
+  };
+
   const abrirDossie = async (p: any) => {
     setSelectedParceiro(p);
     setLoadingHistorico(true);
@@ -340,6 +440,18 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
 
   const visitadosHoje = visitadosIds.size;
 
+  const semComprasParceiros = useMemo(() =>
+    localParceiros
+      .filter(p => !p.compras_mes || p.compras_mes === 0)
+      .sort((a, b) => {
+        if (!a.ultima_compra && !b.ultima_compra) return 0;
+        if (!a.ultima_compra) return -1;
+        if (!b.ultima_compra) return 1;
+        return new Date(a.ultima_compra).getTime() - new Date(b.ultima_compra).getTime();
+      }),
+    [localParceiros]
+  );
+
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] p-4 md:p-6 space-y-6 font-sans">
       {/* Header */}
@@ -361,7 +473,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
       </header>
 
       {/* Métricas */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 md:gap-4">
         <MetricCard icon={<Users />} title="Parceiros Ativos" value={localMetricas.total_ativos} />
         <MetricCard icon={<Eye className="text-cyan-400" />} title="Visitados (Mês)" value={localMetricas.visitados_mes} />
         <MetricCard
@@ -371,7 +483,19 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
           subtitle={localMetricas.visitados_mes > 0 ? `${Math.round(Number(localMetricas.compraram_mes) / Number(localMetricas.visitados_mes) * 100)}% de conversão` : undefined}
           onClick={abrirRankingModal}
         />
-        <MetricCard icon={<AlertCircle className="text-rose-400" />} title="Sem Visita +15d" value={localMetricas.sem_visita_15d} onClick={() => { setFiltroAtrasado(f => !f); setFiltroRegiao(''); setActiveTab('todos'); }} active={filtroAtrasado} />
+        <MetricCard
+          icon={<AlertCircle className="text-rose-400" />}
+          title="Sem Compras (Mês)"
+          value={semComprasParceiros.length}
+          subtitle={`de ${localMetricas.total_ativos} ativos`}
+          onClick={() => setSemComprasModal(true)}
+        />
+        <MetricCard
+          icon={<DollarSign className="text-emerald-400" />}
+          title="Ticket Médio (Mês)"
+          value={localMetricas.ticket_medio_mes && Number(localMetricas.ticket_medio_mes) > 0 ? `R$ ${Number(localMetricas.ticket_medio_mes).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'R$ —'}
+          subtitle={localMetricas.ticket_medio_geral && Number(localMetricas.ticket_medio_geral) > 0 ? `Geral: R$ ${Number(localMetricas.ticket_medio_geral).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'Registre valores nas visitas'}
+        />
       </div>
 
       {/* Campanhas Ativas */}
@@ -500,17 +624,28 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
             </div>
           </div>
           {typeof activeTab === 'number' && (
-            <button
-              onClick={rotaOrganizada ? handleDesfazerRota : handleOrganizarRota}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${
-                rotaOrganizada
-                  ? 'bg-amber-500/20 border border-amber-500/50 text-amber-400 hover:bg-amber-500/30'
-                  : 'bg-amber-500 text-black hover:bg-amber-400 shadow-lg shadow-amber-500/20'
-              }`}
-            >
-              <Navigation className="w-4 h-4" />
-              {rotaOrganizada ? 'Desfazer Ordem' : 'Organizar Rota'}
-            </button>
+            <div className="flex gap-2">
+              {rotaOrganizada && (
+                <button
+                  onClick={() => setMapaAberto(true)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold bg-cyan-500/20 border border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/30 transition-all"
+                >
+                  🗺️ Ver Mapa
+                </button>
+              )}
+              <button
+                onClick={rotaOrganizada ? handleDesfazerRota : handleOrganizarRota}
+                disabled={organizandoRota}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all disabled:opacity-60 ${
+                  rotaOrganizada
+                    ? 'bg-amber-500/20 border border-amber-500/50 text-amber-400 hover:bg-amber-500/30'
+                    : 'bg-amber-500 text-black hover:bg-amber-400 shadow-lg shadow-amber-500/20'
+                }`}
+              >
+                <Navigation className="w-4 h-4" />
+                {organizandoRota ? 'Obtendo GPS...' : rotaOrganizada ? 'Desfazer Ordem' : 'Organizar Rota'}
+              </button>
+            </div>
           )}
         </div>
 
@@ -538,8 +673,20 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
 
               <div className="flex items-center gap-3 flex-1 pl-3 min-w-0">
                 {rotaOrganizada && (
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-amber-500 text-black flex items-center justify-center text-sm font-black shadow-md shadow-amber-500/30">
-                    {index + 1}
+                  <div className="flex-shrink-0 flex flex-col items-center gap-0.5" onClick={e => e.stopPropagation()}>
+                    <button
+                      onClick={() => moverNaRota(index, 'up')}
+                      disabled={index === 0}
+                      className="text-[10px] text-amber-400 hover:text-amber-300 disabled:opacity-20 disabled:cursor-not-allowed leading-none px-1"
+                    >▲</button>
+                    <div className="w-8 h-8 rounded-full bg-amber-500 text-black flex items-center justify-center text-sm font-black shadow-md shadow-amber-500/30">
+                      {index + 1}
+                    </div>
+                    <button
+                      onClick={() => moverNaRota(index, 'down')}
+                      disabled={index === listaMostrada.length - 1}
+                      className="text-[10px] text-amber-400 hover:text-amber-300 disabled:opacity-20 disabled:cursor-not-allowed leading-none px-1"
+                    >▼</button>
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
@@ -560,6 +707,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
                     {p.perfil && <span className="text-[10px] bg-cyan-500/10 text-cyan-400 px-2 py-0.5 rounded-full font-medium">{p.perfil}</span>}
                     <span className="text-[10px] text-[var(--muted-foreground)]">{indicadorTexto(p.dias_sem_visita)}</span>
                     {p.compras_mes > 0 && <span className="text-[10px] text-emerald-400">✓ {p.compras_mes} compra(s) no mês</span>}
+                    {p.ticket_medio && <span className="text-[10px] text-cyan-400 font-bold">∅ R$ {Number(p.ticket_medio).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>}
                   </div>
                   <div className="flex gap-1 mt-1.5">
                     {Array.from({ length: totalSemanas }, (_, i) => i + 1).map(s => {
@@ -1064,6 +1212,60 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
         </div>
       )}
 
+      {/* Modal Sem Compras */}
+      {semComprasModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-[var(--card)] w-full max-w-lg rounded-2xl border border-[var(--border)] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="p-5 border-b border-[var(--border)] flex justify-between items-start">
+              <div>
+                <h3 className="font-bold text-lg text-rose-400">Sem Compras Este Mês</h3>
+                <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
+                  {semComprasParceiros.length} parceiro{semComprasParceiros.length !== 1 ? 's' : ''} sem nenhuma compra em {new Date().toLocaleDateString('pt-BR', { month: 'long' })}
+                </p>
+              </div>
+              <button onClick={() => setSemComprasModal(false)} className="p-1 hover:bg-[var(--muted)] rounded-full transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="overflow-y-auto custom-scrollbar flex-1 divide-y divide-[var(--border)]">
+              {semComprasParceiros.map(p => (
+                <div key={p.id} className="flex items-center gap-3 px-5 py-3 hover:bg-[var(--secondary)] transition-colors cursor-pointer" onClick={() => { setSemComprasModal(false); abrirDossie(p); }}>
+                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${indicadorCor(p.dias_sem_visita)}`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold truncate">{p.nome_fantasia}</p>
+                    <div className="flex gap-2 mt-0.5 flex-wrap">
+                      {p.regiao && <span className="text-[10px] bg-[var(--secondary)] px-1.5 py-0.5 rounded font-bold">R{p.regiao}</span>}
+                      <span className="text-[10px] text-[var(--muted-foreground)]">{indicadorTexto(p.dias_sem_visita)}</span>
+                      {p.ultima_compra
+                        ? <span className="text-[10px] text-amber-400">Última compra: {new Date(p.ultima_compra).toLocaleDateString('pt-BR')}</span>
+                        : <span className="text-[10px] text-rose-400 font-bold">Nunca comprou</span>
+                      }
+                      {p.ticket_medio && <span className="text-[10px] text-cyan-400">∅ R$ {Number(p.ticket_medio).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>}
+                    </div>
+                  </div>
+                  <button
+                    onClick={e => { e.stopPropagation(); setSemComprasModal(false); abrirVisitaModal(p, e); }}
+                    className="flex-shrink-0 text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-emerald-500 text-black hover:bg-emerald-400 transition-all"
+                  >
+                    👋 Visita
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mapa da Rota */}
+      {mapaAberto && (
+        <MapaRota
+          parceiros={listaMostrada}
+          userLat={userPos?.lat}
+          userLng={userPos?.lng}
+          onClose={() => setMapaAberto(false)}
+        />
+      )}
+
       {/* Dossiê Modal */}
       {selectedParceiro && (
         <div className="fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
@@ -1100,6 +1302,11 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
                   </div>
                   <p className="text-sm">{selectedParceiro.visitas_mes || 0} visitas no mês</p>
                   <p className="text-sm">{selectedParceiro.compras_mes || 0} compras no mês</p>
+                  {selectedParceiro.ticket_medio && (
+                    <p className="text-sm font-bold text-cyan-400">
+                      Ticket médio: R$ {Number(selectedParceiro.ticket_medio).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                  )}
                   {selectedParceiro.ultima_compra && (
                     <p className="text-sm text-emerald-400">Última compra: {new Date(selectedParceiro.ultima_compra).toLocaleDateString('pt-BR')}</p>
                   )}
@@ -1140,23 +1347,33 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
                   <p className="text-sm italic text-[var(--muted-foreground)]">Nenhuma visita registrada ainda.</p>
                 ) : (
                   <div className="space-y-2 max-h-[200px] overflow-y-auto custom-scrollbar">
-                    {historicoVisitas.map((v: any) => (
-                      <div key={v.id} className="flex items-start gap-3 border-l-2 border-[var(--border)] pl-3 py-1">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs font-bold">{new Date(v.data_visita).toLocaleDateString('pt-BR')}</span>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
-                              v.tipo_visita === 'FISICO' ? 'bg-cyan-500/20 text-cyan-400' :
-                              v.tipo_visita === 'TELEFONE' ? 'bg-violet-500/20 text-violet-400' :
-                              'bg-emerald-500/20 text-emerald-400'
-                            }`}>{v.tipo_visita}</span>
-                            {v.comprou && <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded font-bold">COMPROU ✓</span>}
-                            {v.valor_pedido && <span className="text-[10px] text-emerald-400 font-bold">R$ {Number(v.valor_pedido).toFixed(2)}</span>}
+                    {historicoVisitas.map((v: any) => {
+                      const cancelado = v.status === 'cancelado' || v.status === 'devolvido';
+                      return (
+                        <div key={v.id} className={`flex items-start gap-3 border-l-2 pl-3 py-1 ${cancelado ? 'border-rose-500/30 opacity-50' : 'border-[var(--border)]'}`}>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`text-xs font-bold ${cancelado ? 'line-through text-[var(--muted-foreground)]' : ''}`}>{new Date(v.data_visita).toLocaleDateString('pt-BR')}</span>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
+                                v.tipo_visita === 'FISICO' ? 'bg-cyan-500/20 text-cyan-400' :
+                                v.tipo_visita === 'TELEFONE' ? 'bg-violet-500/20 text-violet-400' :
+                                'bg-emerald-500/20 text-emerald-400'
+                              }`}>{v.tipo_visita}</span>
+                              {v.comprou && !cancelado && <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded font-bold">COMPROU ✓</span>}
+                              {v.valor_pedido && <span className={`text-[10px] font-bold ${cancelado ? 'line-through text-[var(--muted-foreground)]' : 'text-emerald-400'}`}>R$ {Number(v.valor_pedido).toFixed(2)}</span>}
+                              {cancelado && <span className="text-[10px] bg-rose-500/20 text-rose-400 px-1.5 py-0.5 rounded font-bold uppercase">{v.status}</span>}
+                            </div>
+                            {v.observacao && <p className="text-xs text-[var(--muted-foreground)] mt-0.5">{v.observacao}</p>}
                           </div>
-                          {v.observacao && <p className="text-xs text-[var(--muted-foreground)] mt-0.5">{v.observacao}</p>}
+                          {v.comprou && !cancelado && (
+                            <div className="flex gap-1 flex-shrink-0">
+                              <button onClick={() => handleCancelarVisita(v.id, 'cancelado')} className="text-[10px] px-1.5 py-0.5 rounded border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 transition-all" title="Cancelar pedido">✕ Cancel.</button>
+                              <button onClick={() => handleCancelarVisita(v.id, 'devolvido')} className="text-[10px] px-1.5 py-0.5 rounded border border-rose-500/30 text-rose-400 hover:bg-rose-500/10 transition-all" title="Marcar como devolução">↩ Dev.</button>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

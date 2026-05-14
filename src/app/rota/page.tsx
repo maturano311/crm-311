@@ -5,6 +5,77 @@ import { buscarRotaDoDia, confirmarVisitaRota, removerRevisitar } from '../actio
 import { ArrowLeft, CalendarDays, MapPin, Navigation, Phone, User, CheckCircle, Clock, Trash2, Route, FileText, ChevronDown, ChevronUp } from 'lucide-react';
 import Link from 'next/link';
 
+// ─── Funções de Otimização de Rota (idênticas ao ParceirosClient) ───────────
+
+async function otimizarRotaORS(
+  clientes: any[],
+  startLat: number,
+  startLng: number,
+  apiKey: string
+): Promise<any[]> {
+  const comCoords = clientes.filter(c => c.lat && c.lng);
+  const semCoords = clientes.filter(c => !c.lat || !c.lng);
+  if (comCoords.length === 0) return clientes;
+
+  const jobs = comCoords.map((c, i) => ({
+    id: i + 1,
+    location: [Number(c.lng), Number(c.lat)],
+  }));
+
+  const res = await fetch('https://api.openrouteservice.org/optimization', {
+    method: 'POST',
+    headers: { 'Authorization': apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      jobs,
+      vehicles: [{ id: 1, profile: 'driving-car', start: [startLng, startLat] }],
+    }),
+  });
+
+  if (!res.ok) throw new Error(`ORS ${res.status}`);
+  const data = await res.json();
+  const steps = (data.routes?.[0]?.steps ?? []).filter((s: any) => s.type === 'job');
+  const ordenados = steps.map((s: any) => comCoords[s.id - 1]);
+  return [...ordenados, ...semCoords];
+}
+
+function organizarRotaLocal(clientes: any[], startLat?: number, startLng?: number): any[] {
+  if (clientes.length <= 1) return clientes;
+
+  // Se não tem GPS, usa order da data de agendamento
+  if (startLat === undefined || startLng === undefined) return clientes;
+
+  // Com GPS: coloca o mais próximo primeiro, depois ordena por distância acumulada (nearest neighbor)
+  const comCoords = clientes.filter(c => c.lat && c.lng);
+  if (comCoords.length === 0) return clientes;
+
+  const semCoords = clientes.filter(c => !c.lat || !c.lng);
+
+  // Greedy nearest-neighbor
+  const visitados = new Set<number>();
+  const ordem: any[] = [];
+  let atualLat = startLat;
+  let atualLng = startLng;
+
+  while (ordem.length < comCoords.length) {
+    let maisProximo: any = null;
+    let menorDist = Infinity;
+    comCoords.forEach((c, i) => {
+      if (visitados.has(i)) return;
+      const d = (Number(c.lat) - atualLat) ** 2 + (Number(c.lng) - atualLng) ** 2;
+      if (d < menorDist) { menorDist = d; maisProximo = { c, i }; }
+    });
+    if (!maisProximo) break;
+    visitados.add(maisProximo.i);
+    ordem.push(maisProximo.c);
+    atualLat = Number(maisProximo.c.lat);
+    atualLng = Number(maisProximo.c.lng);
+  }
+
+  return [...ordem, ...semCoords];
+}
+
+// ─── Componente ──────────────────────────────────────────────────────────────
+
 export default function RotaPage() {
   const today = new Date().toISOString().split('T')[0];
   const [dataSelecionada, setDataSelecionada] = useState(today);
@@ -14,10 +85,14 @@ export default function RotaPage() {
 
   // Mini-dossiê expandido por card
   const [expandidoId, setExpandidoId] = useState<number | null>(null);
-  // Notas por card (chave = id do cliente)
   const [notasTemp, setNotasTemp] = useState<Record<number, string>>({});
   const [confirmandoId, setConfirmandoId] = useState<number | null>(null);
   const [removendoId, setRemovendoId] = useState<number | null>(null);
+
+  // Organização de rota
+  const [rotaOrganizada, setRotaOrganizada] = useState(false);
+  const [ordemRota, setOrdemRota] = useState<any[]>([]);
+  const [organizandoRota, setOrganizandoRota] = useState(false);
 
   useEffect(() => { handleBuscar(today); }, []);
 
@@ -31,7 +106,62 @@ export default function RotaPage() {
     setBuscado(true);
     setLoading(false);
     setExpandidoId(null);
+    // Reseta a organização quando muda de data
+    setRotaOrganizada(false);
+    setOrdemRota([]);
   };
+
+  const handleOrganizarRota = () => {
+    const apiKey = process.env.NEXT_PUBLIC_ORS_API_KEY;
+
+    const aplicarLocal = (lat?: number, lng?: number) => {
+      setOrdemRota(organizarRotaLocal(clientes, lat, lng));
+      setRotaOrganizada(true);
+      setOrganizandoRota(false);
+    };
+
+    const aplicarComGPS = async (lat: number, lng: number) => {
+      if (apiKey) {
+        try {
+          const ordem = await otimizarRotaORS(clientes, lat, lng, apiKey);
+          setOrdemRota(ordem);
+          setRotaOrganizada(true);
+          setOrganizandoRota(false);
+          return;
+        } catch {
+          // fallback para algoritmo local
+        }
+      }
+      aplicarLocal(lat, lng);
+    };
+
+    setOrganizandoRota(true);
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        pos => aplicarComGPS(pos.coords.latitude, pos.coords.longitude),
+        () => aplicarLocal(),
+        { timeout: 6000, maximumAge: 30000 }
+      );
+    } else {
+      aplicarLocal();
+    }
+  };
+
+  const handleDesfazerRota = () => {
+    setRotaOrganizada(false);
+    setOrdemRota([]);
+  };
+
+  const moverNaRota = (idx: number, direcao: 'up' | 'down') => {
+    const novaLista = [...ordemRota];
+    const swapIdx = direcao === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= novaLista.length) return;
+    [novaLista[idx], novaLista[swapIdx]] = [novaLista[swapIdx], novaLista[idx]];
+    setOrdemRota(novaLista);
+  };
+
+  // Lista mostrada: organizada ou original
+  const listaMostrada = rotaOrganizada ? ordemRota : clientes;
 
   // Clique em "Visita Feita" — abre o mini-dossiê para o usuário anotar
   const handleAbrirDossie = (id: number) => {
@@ -44,7 +174,9 @@ export default function RotaPage() {
     const nota = notasTemp[id] || null;
     const res = await confirmarVisitaRota(id, nota);
     if (res.success) {
-      setClientes(prev => prev.filter(c => c.id !== id));
+      const novaLista = clientes.filter(c => c.id !== id);
+      setClientes(novaLista);
+      if (rotaOrganizada) setOrdemRota(prev => prev.filter(c => c.id !== id));
       setExpandidoId(null);
     } else {
       alert('Erro ao confirmar visita: ' + res.error);
@@ -57,18 +189,20 @@ export default function RotaPage() {
     setRemovendoId(id);
     const res = await removerRevisitar(id);
     if (res.success) {
-      setClientes(prev => prev.filter(c => c.id !== id));
+      const novaLista = clientes.filter(c => c.id !== id);
+      setClientes(novaLista);
+      if (rotaOrganizada) setOrdemRota(prev => prev.filter(c => c.id !== id));
     }
     setRemovendoId(null);
   };
 
   const handleAbrirRotaGoogleMaps = () => {
-    const comEndereco = clientes.filter(c => c.endereco);
-    if (comEndereco.length === 0) {
+    const lista = listaMostrada.filter(c => c.endereco);
+    if (lista.length === 0) {
       alert('Nenhum cliente com endereço registrado para montar a rota.');
       return;
     }
-    const paradas = comEndereco.slice(0, 10);
+    const paradas = lista.slice(0, 10);
     const waypoints = paradas.slice(0, -1).map(c => encodeURIComponent(c.endereco)).join('/');
     const destino = encodeURIComponent(paradas[paradas.length - 1].endereco);
     const url = `https://www.google.com/maps/dir/Current+Location/${waypoints ? waypoints + '/' : ''}${destino}`;
@@ -135,23 +269,47 @@ export default function RotaPage() {
 
         {!loading && buscado && (
           <>
-            {/* Resumo */}
-            <div className="glass-panel rounded-2xl p-4 flex items-center justify-between">
-              <div>
-                <p className="text-xs text-[var(--muted-foreground)] uppercase tracking-wider font-bold mb-1">
-                  {dataBR}
-                </p>
-                <p className="text-2xl font-bold">
-                  {clientes.length} {clientes.length === 1 ? 'visita' : 'visitas'} agendadas
-                </p>
+            {/* Resumo + Botões de Rota */}
+            <div className="glass-panel rounded-2xl p-4">
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div>
+                  <p className="text-xs text-[var(--muted-foreground)] uppercase tracking-wider font-bold mb-1">
+                    {dataBR}
+                  </p>
+                  <p className="text-2xl font-bold">
+                    {clientes.length} {clientes.length === 1 ? 'visita' : 'visitas'} agendadas
+                  </p>
+                  {rotaOrganizada && (
+                    <span className="text-xs text-amber-400 flex items-center gap-1 mt-1">
+                      <Navigation className="w-3 h-3" />
+                      Rota otimizada — arraste ▲▼ para reordenar
+                    </span>
+                  )}
+                </div>
+                {clientes.length > 0 && (
+                  <button
+                    onClick={handleAbrirRotaGoogleMaps}
+                    className="magnetic-button flex items-center gap-2 bg-[var(--primary)] text-black px-4 py-3 rounded-xl font-bold text-sm"
+                  >
+                    <Navigation className="w-4 h-4" />
+                    Abrir Rota
+                  </button>
+                )}
               </div>
-              {clientes.length > 0 && (
+
+              {/* Botão Organizar Rota */}
+              {clientes.length > 1 && (
                 <button
-                  onClick={handleAbrirRotaGoogleMaps}
-                  className="magnetic-button flex items-center gap-2 bg-[var(--primary)] text-black px-4 py-3 rounded-xl font-bold text-sm"
+                  onClick={rotaOrganizada ? handleDesfazerRota : handleOrganizarRota}
+                  disabled={organizandoRota}
+                  className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all disabled:opacity-60 ${
+                    rotaOrganizada
+                      ? 'bg-amber-500/20 border border-amber-500/50 text-amber-400 hover:bg-amber-500/30'
+                      : 'bg-amber-500 text-black hover:bg-amber-400 shadow-lg shadow-amber-500/20'
+                  }`}
                 >
                   <Navigation className="w-4 h-4" />
-                  Abrir Rota
+                  {organizandoRota ? 'Obtendo GPS...' : rotaOrganizada ? 'Desfazer Ordem' : 'Organizar Rota'}
                 </button>
               )}
             </div>
@@ -164,7 +322,7 @@ export default function RotaPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {clientes.map((cliente, idx) => {
+                {listaMostrada.map((cliente, idx) => {
                   const prio = prioridadeConfig[cliente.prioridade] || prioridadeConfig['MEDIA'];
                   const aberto = expandidoId === cliente.id;
 
@@ -177,9 +335,28 @@ export default function RotaPage() {
                         {/* Cabeçalho do card */}
                         <div className="flex items-start justify-between gap-2 mb-3">
                           <div className="flex items-center gap-3">
-                            <span className="w-7 h-7 rounded-full bg-[var(--primary)]/20 text-[var(--primary)] text-xs font-bold flex items-center justify-center flex-shrink-0">
-                              {idx + 1}
-                            </span>
+                            {/* Numeração e controles de ordem */}
+                            {rotaOrganizada ? (
+                              <div className="flex-shrink-0 flex flex-col items-center gap-0.5" onClick={e => e.stopPropagation()}>
+                                <button
+                                  onClick={() => moverNaRota(idx, 'up')}
+                                  disabled={idx === 0}
+                                  className="text-[10px] text-amber-400 hover:text-amber-300 disabled:opacity-20 disabled:cursor-not-allowed leading-none px-1"
+                                >▲</button>
+                                <div className="w-8 h-8 rounded-full bg-amber-500 text-black flex items-center justify-center text-sm font-black shadow-md shadow-amber-500/30">
+                                  {idx + 1}
+                                </div>
+                                <button
+                                  onClick={() => moverNaRota(idx, 'down')}
+                                  disabled={idx === listaMostrada.length - 1}
+                                  className="text-[10px] text-amber-400 hover:text-amber-300 disabled:opacity-20 disabled:cursor-not-allowed leading-none px-1"
+                                >▼</button>
+                              </div>
+                            ) : (
+                              <span className="w-7 h-7 rounded-full bg-[var(--primary)]/20 text-[var(--primary)] text-xs font-bold flex items-center justify-center flex-shrink-0">
+                                {idx + 1}
+                              </span>
+                            )}
                             <div>
                               <h3 className="font-bold text-base leading-tight">{cliente.nome_fantasia}</h3>
                               <span className={`text-xs font-medium ${cliente.status === 'Cliente' ? 'text-emerald-400' : cliente.status === 'Em Andamento' ? 'text-amber-400' : 'text-[var(--muted-foreground)]'}`}>
@@ -238,7 +415,7 @@ export default function RotaPage() {
                               <Navigation className="w-3 h-3" /> Navegar
                             </a>
                           )}
-                          {/* BOTÃO VISITA FEITA — abre mini-dossiê */}
+                          {/* BOTÃO VISITA FEITA */}
                           <button
                             onClick={() => handleAbrirDossie(cliente.id)}
                             className={`flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg font-bold transition-colors ${aberto ? 'bg-emerald-500 text-black' : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-black'}`}
@@ -304,7 +481,7 @@ export default function RotaPage() {
               </div>
             )}
 
-            {clientes.filter(c => c.endereco).length > 10 && (
+            {listaMostrada.filter(c => c.endereco).length > 10 && (
               <p className="text-xs text-amber-400 text-center">
                 ⚠️ O Google Maps suporta até 10 paradas. A rota foi montada com as 10 primeiras visitas.
               </p>

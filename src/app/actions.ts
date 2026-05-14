@@ -45,6 +45,10 @@ export async function salvarEdicaoCliente(id: number, dados: {
   rede: string | null;
   sub_rede: string | null;
   prioridade: string | null;
+  endereco: string | null;
+  bairro: string | null;
+  cidade: string | null;
+  status: string | null;
 }) {
   try {
     await pool.query(`
@@ -61,8 +65,12 @@ export async function salvarEdicaoCliente(id: number, dados: {
         email_financeiro = $9,
         rede = $10,
         sub_rede = $11,
-        prioridade = $12
-      WHERE id = $13
+        prioridade = $12,
+        endereco = $13,
+        bairro = $14,
+        cidade = $15,
+        status = COALESCE(NULLIF($16, ''), status)
+      WHERE id = $17
     `, [
       dados.prazo_pagamento || null, 
       dados.observacao_atendimento || null,
@@ -76,6 +84,10 @@ export async function salvarEdicaoCliente(id: number, dados: {
       dados.rede || null,
       dados.sub_rede || null,
       dados.prioridade || null,
+      dados.endereco || null,
+      dados.bairro || null,
+      dados.cidade || null,
+      dados.status || null,
       id
     ]);
     
