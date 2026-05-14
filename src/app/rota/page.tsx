@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { buscarRotaDoDia, confirmarVisitaRota, removerRevisitar } from '../actions/rota';
-import { ArrowLeft, CalendarDays, MapPin, Navigation, Phone, User, CheckCircle, Clock, Trash2, Route, FileText, ChevronDown, ChevronUp } from 'lucide-react';
+import { salvarEdicaoCliente } from '../actions';
+import { ArrowLeft, CalendarDays, MapPin, Navigation, Phone, User, CheckCircle, Clock, Trash2, Route, FileText, ChevronDown, ChevronUp, Pencil, X, Save } from 'lucide-react';
 import Link from 'next/link';
 
 // ─── Funções de Otimização de Rota (idênticas ao ParceirosClient) ───────────
@@ -93,6 +94,49 @@ export default function RotaPage() {
   const [rotaOrganizada, setRotaOrganizada] = useState(false);
   const [ordemRota, setOrdemRota] = useState<any[]>([]);
   const [organizandoRota, setOrganizandoRota] = useState(false);
+
+  // Modal de edição
+  const [editando, setEditando] = useState<any | null>(null);
+  const [editForm, setEditForm] = useState<any>({});
+  const [salvandoEdicao, setSalvandoEdicao] = useState(false);
+
+  const abrirEdicao = (c: any) => {
+    setEditando(c);
+    setEditForm({
+      nome_contato: c.nome_contato || '',
+      telefone: c.telefone || '',
+      endereco: c.endereco || '',
+      bairro: c.bairro || '',
+      cidade: c.cidade || '',
+      prioridade: c.prioridade || '',
+      status: c.status || '',
+      observacao_atendimento: c.observacao_atendimento || '',
+      revisitar: c.revisitar ? new Date(c.revisitar).toISOString().split('T')[0] : '',
+      // campos obrigatórios da action (mantém valores atuais)
+      prazo_pagamento: c.prazo_pagamento || '',
+      cnpj: c.cnpj || '',
+      inscricao_estadual: c.inscricao_estadual || '',
+      email_xml: c.email_xml || '',
+      email_financeiro: c.email_financeiro || '',
+      rede: c.rede || '',
+      sub_rede: c.sub_rede || '',
+    });
+  };
+
+  const salvarEdicao = async () => {
+    if (!editando) return;
+    setSalvandoEdicao(true);
+    const res = await salvarEdicaoCliente(editando.id, editForm);
+    if (res.success) {
+      const updated = { ...editando, ...editForm };
+      setClientes(prev => prev.map(c => c.id === editando.id ? updated : c));
+      if (rotaOrganizada) setOrdemRota(prev => prev.map(c => c.id === editando.id ? updated : c));
+      setEditando(null);
+    } else {
+      alert('Erro ao salvar: ' + res.error);
+    }
+    setSalvandoEdicao(false);
+  };
 
   useEffect(() => { handleBuscar(today); }, []);
 
@@ -364,15 +408,24 @@ export default function RotaPage() {
                               </span>
                             </div>
                           </div>
-                          {/* Botão remover agendamento (discreto) */}
-                          <button
-                            onClick={() => handleRemoverAgendamento(cliente.id)}
-                            disabled={removendoId === cliente.id}
-                            title="Cancelar agendamento sem registrar visita"
-                            className="p-2 text-[var(--muted-foreground)] hover:text-rose-400 hover:bg-rose-400/10 rounded-lg transition-colors disabled:opacity-50"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {/* Botões: editar + remover */}
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => abrirEdicao(cliente)}
+                              title="Editar cliente"
+                              className="p-2 text-[var(--muted-foreground)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/10 rounded-lg transition-colors"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleRemoverAgendamento(cliente.id)}
+                              disabled={removendoId === cliente.id}
+                              title="Cancelar agendamento sem registrar visita"
+                              className="p-2 text-[var(--muted-foreground)] hover:text-rose-400 hover:bg-rose-400/10 rounded-lg transition-colors disabled:opacity-50"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
 
                         {/* Informações */}
@@ -489,6 +542,82 @@ export default function RotaPage() {
           </>
         )}
       </div>
+
+      {/* Modal de Edição */}
+      {editando && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-[var(--card)] w-full max-w-lg rounded-t-2xl sm:rounded-2xl border border-[var(--border)] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="p-5 border-b border-[var(--border)] flex justify-between items-start bg-[var(--secondary)]/30">
+              <div>
+                <h2 className="text-lg font-bold text-[var(--primary)]">{editando.nome_fantasia}</h2>
+                <p className="text-xs text-[var(--muted-foreground)] mt-0.5">Editar informações do cliente</p>
+              </div>
+              <button onClick={() => setEditando(null)} className="p-1 hover:bg-[var(--muted)] rounded-full transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 overflow-y-auto space-y-4 flex-1">
+              <div>
+                <p className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-wider mb-2">Status</p>
+                <div className="flex gap-2 flex-wrap">
+                  {(['Não iniciada', 'Em Andamento', 'Cliente', 'Descartado'] as const).map(s => (
+                    <button key={s} onClick={() => setEditForm((f: any) => ({ ...f, status: s }))}
+                      className={`px-3 py-1 rounded-full text-xs font-bold border transition-all ${editForm.status === s ? s === 'Cliente' ? 'bg-emerald-500 text-white border-emerald-500' : s === 'Em Andamento' ? 'bg-amber-500 text-black border-amber-500' : s === 'Descartado' ? 'bg-rose-500 text-white border-rose-500' : 'bg-slate-500 text-white border-slate-500' : 'bg-transparent text-[var(--muted-foreground)] border-[var(--border)] hover:border-[var(--primary)]'}`}>{s}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-wider mb-2">Prioridade</p>
+                <div className="flex gap-2">
+                  {(['ALTA', 'MEDIA', 'BAIXA'] as const).map(p => (
+                    <button key={p} onClick={() => setEditForm((f: any) => ({ ...f, prioridade: p }))}
+                      className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-all ${editForm.prioridade === p ? p === 'ALTA' ? 'bg-rose-500 text-white border-rose-500' : p === 'MEDIA' ? 'bg-amber-500 text-black border-amber-500' : 'bg-emerald-500 text-white border-emerald-500' : 'bg-transparent text-[var(--muted-foreground)] border-[var(--border)] hover:border-[var(--primary)]'}`}>{p}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-wider">Contato</label>
+                  <input type="text" value={editForm.nome_contato} onChange={e => setEditForm((f: any) => ({ ...f, nome_contato: e.target.value }))} className="w-full mt-1 bg-[var(--background)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm focus:border-[var(--primary)] outline-none" placeholder="Nome do contato" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-wider">Telefone</label>
+                  <input type="text" value={editForm.telefone} onChange={e => setEditForm((f: any) => ({ ...f, telefone: e.target.value }))} className="w-full mt-1 bg-[var(--background)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm focus:border-[var(--primary)] outline-none" placeholder="(00) 00000-0000" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-wider">Endereço</label>
+                <input type="text" value={editForm.endereco} onChange={e => setEditForm((f: any) => ({ ...f, endereco: e.target.value }))} className="w-full mt-1 bg-[var(--background)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm focus:border-[var(--primary)] outline-none" placeholder="Rua, número" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-wider">Bairro</label>
+                  <input type="text" value={editForm.bairro} onChange={e => setEditForm((f: any) => ({ ...f, bairro: e.target.value }))} className="w-full mt-1 bg-[var(--background)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm focus:border-[var(--primary)] outline-none" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-wider">Cidade</label>
+                  <input type="text" value={editForm.cidade} onChange={e => setEditForm((f: any) => ({ ...f, cidade: e.target.value }))} className="w-full mt-1 bg-[var(--background)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm focus:border-[var(--primary)] outline-none" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-wider">Próxima Visita</label>
+                <input type="date" value={editForm.revisitar} onChange={e => setEditForm((f: any) => ({ ...f, revisitar: e.target.value }))} className="w-full mt-1 bg-[var(--background)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm focus:border-[var(--primary)] outline-none" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-wider">Notas de Atendimento</label>
+                <textarea rows={3} value={editForm.observacao_atendimento} onChange={e => setEditForm((f: any) => ({ ...f, observacao_atendimento: e.target.value }))} className="w-full mt-1 bg-[var(--background)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm focus:border-[var(--primary)] outline-none resize-none" placeholder="Observações..." />
+              </div>
+            </div>
+            <div className="p-5 border-t border-[var(--border)] flex gap-3">
+              <button onClick={() => setEditando(null)} className="flex-1 py-3 rounded-xl text-sm font-bold border border-[var(--border)] text-[var(--muted-foreground)] hover:border-white hover:text-white transition-all">Cancelar</button>
+              <button onClick={salvarEdicao} disabled={salvandoEdicao} className="flex-1 py-3 rounded-xl text-sm font-bold bg-[var(--primary)] text-black hover:opacity-90 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                <Save className="w-4 h-4" />{salvandoEdicao ? 'Salvando...' : 'Salvar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
