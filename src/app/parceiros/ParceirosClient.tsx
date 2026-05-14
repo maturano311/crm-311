@@ -270,7 +270,17 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
 
   const parcFiltrados = useMemo(() => {
     return localParceiros.filter(p => {
-      if (busca && !(p.nome_fantasia || '').toLowerCase().includes(busca.toLowerCase())) return false;
+      if (busca) {
+        const q = busca.toLowerCase();
+        const match = [
+          p.nome_fantasia,
+          p.cidade,
+          p.bairro,
+          p.telefone,
+          p.cod_parceiro != null ? String(p.cod_parceiro) : null,
+        ].some(v => v && String(v).toLowerCase().includes(q));
+        if (!match) return false;
+      }
       if (filtroRegiao && p.regiao !== filtroRegiao) return false;
       if (filtroAtrasado && !(p.dias_sem_visita === null || p.dias_sem_visita > 15)) return false;
       return true;

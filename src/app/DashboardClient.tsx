@@ -273,7 +273,17 @@ export default function DashboardClient({ clientes, metricas, prazos = [], redes
   // Lista filtrada (memoizada para evitar dupla execução e melhorar performance mobile)
   const clientesFiltrados = useMemo(() => {
     return clientes.filter(c => {
-      const matchesBusca = busca ? c.nome_fantasia.toLowerCase().includes(busca.toLowerCase()) : true;
+      const q = busca.toLowerCase();
+      const matchesBusca = busca
+        ? [
+            c.nome_fantasia,
+            c.cidade,
+            c.bairro,
+            c.telefone,
+            c.cnpj,
+            c.nome_contato,
+          ].some(v => v && String(v).toLowerCase().includes(q))
+        : true;
       if (!matchesBusca) return false;
       if (filtroPrioridade === 'SEM') { if (c.prioridade != null && c.prioridade !== '') return false; }
       else if (filtroPrioridade && c.prioridade !== filtroPrioridade) return false;
