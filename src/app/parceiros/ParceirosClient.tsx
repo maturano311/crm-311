@@ -310,21 +310,24 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
     // Na aba "Todos" mostra todos (visitados aparecem com estilo diferente)
     if (activeTab === 'todos') return parcFiltrados;
 
-    // Com busca ativa na aba de sequência: mostra TODOS os resultados (inclusive visitados)
-    // para o usuário poder localizar pelo código
+    // Com busca ativa: mostra TODOS os resultados (inclusive visitados) para localizar pelo código
     if (busca) return parceirosVisiveis;
 
     const naoVisitados = parceirosVisiveis.filter(p => !visitadosIds.has(p.id));
+    const visitados = parceirosVisiveis.filter(p => visitadosIds.has(p.id));
 
-    if (!rotaOrganizada) return naoVisitados;
+    if (!rotaOrganizada) {
+      // Visitados aparecem no FINAL (com opacity-60 já aplicada no card)
+      return [...naoVisitados, ...visitados];
+    }
 
-    // Rota organizada: parceiros da rota (não visitados) + novos que entraram depois
+    // Rota organizada: pendentes da rota + extras + visitados no final
     const naRota = ordemRota.filter((p: any) => !visitadosIds.has(p.id));
     const idsNaRota = new Set(naRota.map((p: any) => p.id));
     const foraRota = naoVisitados.filter(p => !idsNaRota.has(p.id));
 
-    return [...naRota, ...foraRota];
-  }, [rotaOrganizada, ordemRota, parceirosVisiveis, visitadosIds, activeTab, parcFiltrados]);
+    return [...naRota, ...foraRota, ...visitados];
+  }, [rotaOrganizada, ordemRota, parceirosVisiveis, visitadosIds, activeTab, parcFiltrados, busca]);
 
   const handleTabChange = (tab: 'todos' | number) => {
     setActiveTab(tab);
@@ -723,9 +726,20 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
             </div>
           ) : listaMostrada.map((p, index) => {
             const foiVisitado = visitadosIds.has(p.id);
+            const anteriorFoiVisitado = index > 0 && visitadosIds.has(listaMostrada[index - 1].id);
+            const primeiroDosVisitados = foiVisitado && !anteriorFoiVisitado && activeTab !== 'todos';
             return (
+            <div key={p.id}>
+              {primeiroDosVisitados && (
+                <div className="flex items-center gap-2 py-2 px-1">
+                  <div className="flex-1 h-px bg-emerald-500/20" />
+                  <span className="text-[10px] font-bold text-emerald-500/60 uppercase tracking-wider whitespace-nowrap">
+                    ✓ {listaMostrada.filter(x => visitadosIds.has(x.id)).length} já visitado(s)
+                  </span>
+                  <div className="flex-1 h-px bg-emerald-500/20" />
+                </div>
+              )}
             <div
-              key={p.id}
               className={`relative bg-[var(--card)] border rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 transition-colors cursor-pointer overflow-hidden ${
                 foiVisitado
                   ? 'border-emerald-500/20 opacity-60 hover:opacity-80'
@@ -826,6 +840,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
                   👋 Registrar Visita
                 </button>
               </div>
+            </div>
             </div>
           );
           })}
