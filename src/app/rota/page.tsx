@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { buscarRotaDoDia, confirmarVisitaRota, removerRevisitar, desfazerVisitaRota } from '../actions/rota';
-import { salvarEdicaoCliente } from '../actions';
+import { salvarEdicaoCliente, agendarRevisita } from '../actions';
+import { buscarLeadsPorBairro } from '../actions/parceiros';
 import { ArrowLeft, CalendarDays, MapPin, Navigation, Phone, User, CheckCircle, Clock, Trash2, Route, FileText, ChevronDown, ChevronUp, Pencil, X, Save, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
 
@@ -105,6 +106,10 @@ export default function RotaPage() {
   const [desfazendoId, setDesfazendoId] = useState<number | null>(null);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Leads próximos do cliente expandido
+  const [leadsProximosRota, setLeadsProximosRota] = useState<any[]>([]);
+  const [agendandoLeadId, setAgendandoLeadId] = useState<number | null>(null);
+
   const abrirEdicao = (c: any) => {
     setEditando(c);
     setEditForm({
@@ -147,6 +152,24 @@ export default function RotaPage() {
 
   // Limpa o timer do undo ao desmontar
   useEffect(() => () => { if (undoTimerRef.current) clearTimeout(undoTimerRef.current); }, []);
+
+  const handleAbrirDossie = async (id: number, cliente?: any) => {
+    if (expandidoId === id) {
+      setExpandidoId(null);
+      setLeadsProximosRota([]);
+      return;
+    }
+    setExpandidoId(id);
+    setLeadsProximosRota([]);
+    // Busca leads próximos do mesmo bairro/cidade
+    if (cliente?.bairro || cliente?.cidade) {
+      const res = await buscarLeadsPorBairro(cliente.cidade || null, cliente.bairro || null);
+      if (res.success) {
+        // Exclui o próprio cliente da lista
+        setLeadsProximosRota((res.data || []).filter((l: any) => l.id !== id));
+      }
+    }
+  };
 
   const handleBuscar = async (data: string) => {
     setLoading(true);
@@ -214,11 +237,6 @@ export default function RotaPage() {
 
   // Lista mostrada: organizada ou original
   const listaMostrada = rotaOrganizada ? ordemRota : clientes;
-
-  // Clique em "Visita Feita" — abre o mini-dossiê para o usuário anotar
-  const handleAbrirDossie = (id: number) => {
-    setExpandidoId(prev => prev === id ? null : id);
-  };
 
   // Confirmar visita: salva nota, muda status, remove do roteiro
   const handleConfirmarVisita = async (id: number) => {
@@ -509,7 +527,7 @@ export default function RotaPage() {
                           )}
                           {/* BOTÃO VISITA FEITA */}
                           <button
-                            onClick={() => handleAbrirDossie(cliente.id)}
+                            onClick={() => handleAbrirDossie(cliente.id, cliente)}
                             className={`flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg font-bold transition-colors ${aberto ? 'bg-emerald-500 text-black' : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-black'}`}
                           >
                             <CheckCircle className="w-3 h-3" />
@@ -547,6 +565,42 @@ export default function RotaPage() {
                                 className="w-full bg-[var(--background)] border border-[var(--border)] rounded-lg p-3 text-sm focus:border-[var(--primary)] outline-none resize-none placeholder:text-[var(--muted-foreground)]/60"
                               />
                             </div>
+
+                            {/* Leads próximos nesta área */}
+                            {aberto && leadsProximosRota.length > 0 && expandidoId === cliente.id && (
+                              <div className="border border-amber-500/30 rounded-xl overflow-hidden">
+                                <div className="bg-amber-500/10 px-3 py-2 flex items-center gap-2">
+                                  <MapPin className="w-3.5 h-3.5 text-amber-400" />
+                                  <p className="text-xs font-bold text-amber-400 uppercase tracking-wider">
+                                    {leadsProximosRota.length} lead{leadsProximosRota.length > 1 ? 's' : ''} nesta área para prospectar
+                                  </p>
+                                </div>
+                                <div className="divide-y divide-[var(--border)] max-h-36 overflow-y-auto">
+                                  {leadsProximosRota.map((lead: any) => (
+                                    <div key={lead.id} className="flex items-center justify-between px-3 py-2 gap-2">
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-bold truncate">{lead.nome_fantasia}</p>
+                                        <p className="text-[10px] text-[var(--muted-foreground)]">{lead.bairro || lead.cidade} • {lead.status}</p>
+                                      </div>
+                                      <button
+                                        onClick={async () => {
+                                          setAgendandoLeadId(lead.id);
+                                          const amanha = new Date();
+                                          amanha.setDate(amanha.getDate() + 1);
+                                          await agendarRevisita(lead.id, amanha.toISOString().split('T')[0]);
+                                          setAgendandoLeadId(null);
+                                          setLeadsProximosRota(prev => prev.filter((l: any) => l.id !== lead.id));
+                                        }}
+                                        disabled={agendandoLeadId === lead.id}
+                                        className="flex-shrink-0 text-[10px] font-bold px-2 py-1 rounded bg-amber-500/20 border border-amber-500/40 text-amber-400 hover:bg-amber-500/30 transition-all disabled:opacity-50 whitespace-nowrap"
+                                      >
+                                        {agendandoLeadId === lead.id ? '...' : '📅 Agendar'}
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
 
                             {/* Info do que vai acontecer */}
                             <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-3">
