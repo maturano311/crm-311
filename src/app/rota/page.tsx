@@ -110,6 +110,10 @@ export default function RotaPage() {
   const [leadsProximosRota, setLeadsProximosRota] = useState<any[]>([]);
   const [agendandoLeadId, setAgendandoLeadId] = useState<number | null>(null);
 
+  // Mini-perfil do lead próximo
+  const [leadModal, setLeadModal] = useState<any | null>(null);
+  const [agendandoLeadHoje, setAgendandoLeadHoje] = useState(false);
+
   const abrirEdicao = (c: any) => {
     setEditando(c);
     setEditForm({
@@ -572,7 +576,7 @@ export default function RotaPage() {
                                 <div className="bg-amber-500/10 px-3 py-2 flex items-center gap-2">
                                   <MapPin className="w-3.5 h-3.5 text-amber-400" />
                                   <p className="text-xs font-bold text-amber-400 uppercase tracking-wider">
-                                    {leadsProximosRota.length} lead{leadsProximosRota.length > 1 ? 's' : ''} nesta área para prospectar
+                                    {leadsProximosRota.length} lead{leadsProximosRota.length > 1 ? 's' : ''} nesta área
                                   </p>
                                 </div>
                                 <div className="divide-y divide-[var(--border)] max-h-36 overflow-y-auto">
@@ -583,18 +587,10 @@ export default function RotaPage() {
                                         <p className="text-[10px] text-[var(--muted-foreground)]">{lead.bairro || lead.cidade} • {lead.status}</p>
                                       </div>
                                       <button
-                                        onClick={async () => {
-                                          setAgendandoLeadId(lead.id);
-                                          const amanha = new Date();
-                                          amanha.setDate(amanha.getDate() + 1);
-                                          await agendarRevisita(lead.id, amanha.toISOString().split('T')[0]);
-                                          setAgendandoLeadId(null);
-                                          setLeadsProximosRota(prev => prev.filter((l: any) => l.id !== lead.id));
-                                        }}
-                                        disabled={agendandoLeadId === lead.id}
-                                        className="flex-shrink-0 text-[10px] font-bold px-2 py-1 rounded bg-amber-500/20 border border-amber-500/40 text-amber-400 hover:bg-amber-500/30 transition-all disabled:opacity-50 whitespace-nowrap"
+                                        onClick={() => setLeadModal(lead)}
+                                        className="flex-shrink-0 text-[10px] font-bold px-2 py-1 rounded bg-amber-500/20 border border-amber-500/40 text-amber-400 hover:bg-amber-500/30 transition-all whitespace-nowrap"
                                       >
-                                        {agendandoLeadId === lead.id ? '...' : '📅 Agendar'}
+                                        👁️ Ver lead
                                       </button>
                                     </div>
                                   ))}
@@ -705,6 +701,80 @@ export default function RotaPage() {
               <button onClick={() => setEditando(null)} className="flex-1 py-3 rounded-xl text-sm font-bold border border-[var(--border)] text-[var(--muted-foreground)] hover:border-white hover:text-white transition-all">Cancelar</button>
               <button onClick={salvarEdicao} disabled={salvandoEdicao} className="flex-1 py-3 rounded-xl text-sm font-bold bg-[var(--primary)] text-black hover:opacity-90 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
                 <Save className="w-4 h-4" />{salvandoEdicao ? 'Salvando...' : 'Salvar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mini-perfil do Lead Pr\u00f3ximo */}
+      {leadModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-[var(--card)] w-full max-w-sm rounded-2xl border border-amber-500/40 shadow-2xl shadow-amber-900/30 overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="bg-amber-500/10 border-b border-amber-500/20 px-5 py-4 flex justify-between items-start">
+              <div>
+                <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">📍 Lead próximo</span>
+                <h3 className="font-bold text-base mt-0.5 leading-tight">{leadModal.nome_fantasia}</h3>
+              </div>
+              <button onClick={() => setLeadModal(null)} className="p-1 hover:bg-[var(--muted)] rounded-full transition-colors mt-0.5">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-2.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                  leadModal.status === 'Em Andamento' ? 'bg-amber-500/20 text-amber-400' :
+                  leadModal.status === 'Cliente' ? 'bg-emerald-500/20 text-emerald-400' :
+                  'bg-slate-500/20 text-slate-400'
+                }`}>{leadModal.status}</span>
+                {leadModal.prioridade && (
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                    leadModal.prioridade === 'ALTA' ? 'bg-rose-500/20 text-rose-400' :
+                    leadModal.prioridade === 'MEDIA' ? 'bg-amber-500/20 text-amber-400' :
+                    'bg-emerald-500/20 text-emerald-400'
+                  }`}>{leadModal.prioridade}</span>
+                )}
+              </div>
+              {(leadModal.endereco || leadModal.bairro || leadModal.cidade) && (
+                <p className="text-sm text-[var(--muted-foreground)] flex items-start gap-2">
+                  <MapPin className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
+                  <span>{[leadModal.endereco, leadModal.bairro, leadModal.cidade].filter(Boolean).join(' — ')}</span>
+                </p>
+              )}
+              {leadModal.telefone && (
+                <a href={`tel:${leadModal.telefone}`} className="text-sm flex items-center gap-2 text-[var(--primary)] hover:underline">
+                  <Phone className="w-3.5 h-3.5 flex-shrink-0" />
+                  {leadModal.telefone}
+                </a>
+              )}
+              {leadModal.nome_contato && (
+                <p className="text-sm text-[var(--muted-foreground)] flex items-center gap-2">
+                  <User className="w-3.5 h-3.5 flex-shrink-0" />
+                  {leadModal.nome_contato}
+                </p>
+              )}
+            </div>
+            <div className="px-5 pb-5 flex flex-col gap-2">
+              <button
+                onClick={async () => {
+                  setAgendandoLeadHoje(true);
+                  const hoje = new Date().toISOString().split('T')[0];
+                  await agendarRevisita(leadModal.id, hoje);
+                  setAgendandoLeadHoje(false);
+                  setLeadsProximosRota(prev => prev.filter((l: any) => l.id !== leadModal.id));
+                  setLeadModal(null);
+                }}
+                disabled={agendandoLeadHoje}
+                className="w-full py-3 rounded-xl text-sm font-bold bg-amber-500 text-black hover:bg-amber-400 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                <MapPin className="w-4 h-4" />
+                {agendandoLeadHoje ? 'Adicionando...' : 'Adicionar à rota de hoje'}
+              </button>
+              <button
+                onClick={() => setLeadModal(null)}
+                className="w-full py-2.5 rounded-xl text-sm font-bold border border-[var(--border)] text-[var(--muted-foreground)] hover:border-white hover:text-white transition-all"
+              >
+                Fechar
               </button>
             </div>
           </div>
