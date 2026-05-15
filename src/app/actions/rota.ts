@@ -3,6 +3,31 @@
 import pool from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 
+export async function desfazerVisitaRota(id: number, dados: {
+  status: string;
+  tipo_entrada: string;
+  revisitar: string | null;
+  observacao_atendimento: string | null;
+}) {
+  try {
+    await pool.query(`
+      UPDATE clientes
+      SET
+        data_visitacao = NULL,
+        status = $1,
+        tipo_entrada = $2,
+        revisitar = $3,
+        observacao_atendimento = $4
+      WHERE id = $5
+    `, [dados.status, dados.tipo_entrada, dados.revisitar || null, dados.observacao_atendimento || null, id]);
+    revalidatePath('/rota');
+    revalidatePath('/');
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
 export async function buscarRotaDoDia(data: string) {
   if (!data || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(data)) {
     console.warn('buscarRotaDoDia chamado com data inválida:', data);

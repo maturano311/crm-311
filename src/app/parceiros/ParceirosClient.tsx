@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
-import { Users, AlertCircle, MapPin, X, Phone, Search, Eye, Share2, DollarSign, FileText, ChevronLeft, Calendar, ShoppingCart, Navigation, Pencil } from 'lucide-react';
-import { registrarVisita, buscarHistoricoVisitas, atualizarParceiro, toggleAtivoParceiro, marcarParceiroNaCampanha, buscarParticipantesCampanha, buscarRankingRecorrencia, cancelarVisita } from '../actions/parceiros';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { Users, AlertCircle, MapPin, X, Phone, Search, Eye, Share2, DollarSign, FileText, ChevronLeft, Calendar, ShoppingCart, Navigation, Pencil, RotateCcw, CheckCircle } from 'lucide-react';
+import { registrarVisita, buscarHistoricoVisitas, atualizarParceiro, toggleAtivoParceiro, marcarParceiroNaCampanha, buscarParticipantesCampanha, buscarRankingRecorrencia, cancelarVisita, buscarLeadsPorBairro, desfazerVisitaParceiro } from '../actions/parceiros';
+import { agendarRevisita } from '../actions';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 
@@ -170,6 +171,16 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
   const [organizandoRota, setOrganizandoRota] = useState(false);
   const [mapaAberto, setMapaAberto] = useState(false);
   const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null);
+  const [leadsProximos, setLeadsProximos] = useState<any[]>([]);
+  const [agendandoLeadId, setAgendandoLeadId] = useState<number | null>(null);
+
+  // Undo da última visita registrada
+  const [ultimaVisita, setUltimaVisita] = useState<{ visitaId: number; parceiro: any; comprou: boolean; valorNum?: number } | null>(null);
+  const [desfazendoVisita, setDesfazendoVisita] = useState(false);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Limpa o timer ao desmontar
+  useEffect(() => () => { if (undoTimerRef.current) clearTimeout(undoTimerRef.current); }, []);
 
   const abrirRankingModal = async () => {
     setRankingModal(true);
@@ -278,6 +289,8 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
           p.bairro,
           p.telefone,
           p.cod_parceiro != null ? String(p.cod_parceiro) : null,
+          p.sequencia != null ? String(p.sequencia) : null,
+          p.regiao != null ? String(p.regiao) : null,
         ].some(v => v && String(v).toLowerCase().includes(q));
         if (!match) return false;
       }
@@ -296,6 +309,10 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
   const listaMostrada = useMemo(() => {
     // Na aba "Todos" mostra todos (visitados aparecem com estilo diferente)
     if (activeTab === 'todos') return parcFiltrados;
+
+    // Com busca ativa na aba de sequência: mostra TODOS os resultados (inclusive visitados)
+    // para o usuário poder localizar pelo código
+    if (busca) return parceirosVisiveis;
 
     const naoVisitados = parceirosVisiveis.filter(p => !visitadosIds.has(p.id));
 
@@ -364,9 +381,15 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
     setRotasPorTab(prev => ({ ...prev, [tabKey]: { organizada: true, ordem: novaLista } }));
   };
 
-  const abrirVisitaModal = (p: any, e: React.MouseEvent) => {
+  const abrirVisitaModal = async (p: any, e: React.MouseEvent) => {
     e.stopPropagation();
     setVisitaModal({ parceiro: p, tipo: 'FISICO', comprou: false, valor: '', obs: '' });
+    setLeadsProximos([]);
+    // Busca leads próximos se há bairro ou cidade
+    if (p.bairro || p.cidade) {
+      const res = await buscarLeadsPorBairro(p.cidade || null, p.bairro || null);
+      if (res.success) setLeadsProximos(res.data || []);
+    }
   };
 
   const confirmarVisita = async () => {
@@ -385,6 +408,8 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
     if (res.success) {
       const semanaHoje = Math.ceil(new Date().getDate() / 7);
       const eraPrimeiraVisitaMes = !visitaModal.parceiro.visitas_mes || visitaModal.parceiro.visitas_mes === 0;
+      // Salva o parceiro e visitaId para poder desfazer
+      const parceiroSnapshot = { ...visitaModal.parceiro };
       setVisitadosIds(prev => new Set([...prev, visitaModal.parceiro.id]));
       setLocalParceiros(prev => prev.map(lp => {
         if (lp.id !== visitaModal.parceiro.id) return lp;
@@ -406,10 +431,39 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
         sem_visita_15d: eraPrimeiraVisitaMes ? Math.max(0, Number(prev.sem_visita_15d) - 1) : Number(prev.sem_visita_15d),
       }));
       setVisitaModal(null);
+      // Ativa o toast de desfazer (15s)
+      if (res.visitaId) {
+        setUltimaVisita({ visitaId: res.visitaId, parceiro: parceiroSnapshot, comprou: visitaModal.comprou, valorNum });
+        if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+        undoTimerRef.current = setTimeout(() => setUltimaVisita(null), 15000);
+      }
     } else {
       alert('Erro ao registrar visita.');
     }
     setSalvandoVisita(false);
+  };
+
+  const handleDesfazerVisita = async () => {
+    if (!ultimaVisita) return;
+    setDesfazendoVisita(true);
+    const res = await desfazerVisitaParceiro(ultimaVisita.visitaId, ultimaVisita.parceiro.id, ultimaVisita.comprou);
+    if (res.success) {
+      // Reverte o estado local
+      setVisitadosIds(prev => { const s = new Set(prev); s.delete(ultimaVisita.parceiro.id); return s; });
+      setLocalParceiros(prev => prev.map(lp =>
+        lp.id === ultimaVisita.parceiro.id ? ultimaVisita.parceiro : lp
+      ));
+      setLocalMetricas((prev: any) => ({
+        ...prev,
+        visitados_mes: Math.max(0, Number(prev.visitados_mes) - (ultimaVisita.parceiro.visitas_mes === 0 ? 1 : 0)),
+        compraram_mes: ultimaVisita.comprou ? Math.max(0, Number(prev.compraram_mes) - 1) : Number(prev.compraram_mes),
+      }));
+      if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+      setUltimaVisita(null);
+    } else {
+      alert('Erro ao desfazer visita: ' + res.error);
+    }
+    setDesfazendoVisita(false);
   };
 
   const handleCancelarVisita = async (visitaId: number, status: 'cancelado' | 'devolvido') => {
@@ -707,6 +761,12 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
                         #{p.cod_parceiro}
                       </span>
                     )}
+                    {/* Mostra sequencia nas abas de sequência */}
+                    {typeof activeTab === 'number' && p.sequencia && (
+                      <span className="flex-shrink-0 text-[11px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-500/15 text-slate-300 border border-slate-500/30">
+                        S{p.sequencia}
+                      </span>
+                    )}
                     <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${indicadorCor(p.dias_sem_visita)}`} title={indicadorTexto(p.dias_sem_visita)} />
                   </div>
                   <p className="text-xs text-[var(--muted-foreground)] flex items-center gap-1 mt-0.5">
@@ -869,6 +929,44 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
               onChange={e => setVisitaModal(m => m ? { ...m, obs: e.target.value } : m)}
               className="w-full bg-[var(--background)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm focus:border-cyan-400 outline-none"
             />
+
+            {/* Leads próximos — aparece quando há leads no mesmo bairro/cidade */}
+            {visitaModal.tipo === 'FISICO' && leadsProximos.length > 0 && (
+              <div className="border border-amber-500/30 rounded-xl overflow-hidden">
+                <div className="bg-amber-500/10 px-3 py-2 flex items-center gap-2">
+                  <MapPin className="w-3.5 h-3.5 text-amber-400" />
+                  <p className="text-xs font-bold text-amber-400 uppercase tracking-wider">
+                    {leadsProximos.length} lead{leadsProximos.length > 1 ? 's' : ''} nesta área para prospectar
+                  </p>
+                </div>
+                <div className="divide-y divide-[var(--border)] max-h-40 overflow-y-auto">
+                  {leadsProximos.map(lead => (
+                    <div key={lead.id} className="flex items-center justify-between px-3 py-2 gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold truncate">{lead.nome_fantasia}</p>
+                        <p className="text-[10px] text-[var(--muted-foreground)]">
+                          {lead.bairro || lead.cidade} • {lead.status}
+                        </p>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          setAgendandoLeadId(lead.id);
+                          const amanha = new Date();
+                          amanha.setDate(amanha.getDate() + 1);
+                          await agendarRevisita(lead.id, amanha.toISOString().split('T')[0]);
+                          setAgendandoLeadId(null);
+                          setLeadsProximos(prev => prev.filter(l => l.id !== lead.id));
+                        }}
+                        disabled={agendandoLeadId === lead.id}
+                        className="flex-shrink-0 text-[10px] font-bold px-2 py-1 rounded bg-amber-500/20 border border-amber-500/40 text-amber-400 hover:bg-amber-500/30 transition-all disabled:opacity-50 whitespace-nowrap"
+                      >
+                        {agendandoLeadId === lead.id ? '...' : '📅 Agendar'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Botões */}
             <div className="flex gap-2 pt-1">
@@ -1388,6 +1486,33 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast de desfazer visita registrada */}
+      {ultimaVisita && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-md animate-in slide-in-from-bottom-4 duration-300">
+          <div className="bg-cyan-950 border border-cyan-500/50 rounded-2xl px-4 py-3 flex items-center gap-3 shadow-2xl shadow-cyan-900/50">
+            <CheckCircle className="w-5 h-5 text-cyan-400 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-cyan-400 truncate">Visita registrada!</p>
+              <p className="text-xs text-cyan-600 truncate">{ultimaVisita.parceiro.nome_fantasia}</p>
+            </div>
+            <button
+              onClick={handleDesfazerVisita}
+              disabled={desfazendoVisita}
+              className="flex-shrink-0 flex items-center gap-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/50 text-cyan-400 px-3 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-50"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              {desfazendoVisita ? '...' : 'Desfazer'}
+            </button>
+            <button
+              onClick={() => { if (undoTimerRef.current) clearTimeout(undoTimerRef.current); setUltimaVisita(null); }}
+              className="p-1 text-cyan-600 hover:text-cyan-400 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         </div>
       )}

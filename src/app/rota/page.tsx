@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { buscarRotaDoDia, confirmarVisitaRota, removerRevisitar } from '../actions/rota';
+import { useState, useEffect, useRef } from 'react';
+import { buscarRotaDoDia, confirmarVisitaRota, removerRevisitar, desfazerVisitaRota } from '../actions/rota';
 import { salvarEdicaoCliente } from '../actions';
-import { ArrowLeft, CalendarDays, MapPin, Navigation, Phone, User, CheckCircle, Clock, Trash2, Route, FileText, ChevronDown, ChevronUp, Pencil, X, Save } from 'lucide-react';
+import { ArrowLeft, CalendarDays, MapPin, Navigation, Phone, User, CheckCircle, Clock, Trash2, Route, FileText, ChevronDown, ChevronUp, Pencil, X, Save, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
 
 // ─── Funções de Otimização de Rota (idênticas ao ParceirosClient) ───────────
@@ -100,6 +100,11 @@ export default function RotaPage() {
   const [editForm, setEditForm] = useState<any>({});
   const [salvandoEdicao, setSalvandoEdicao] = useState(false);
 
+  // Desfazer última visita
+  const [ultimaConfirmada, setUltimaConfirmada] = useState<any | null>(null);
+  const [desfazendoId, setDesfazendoId] = useState<number | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const abrirEdicao = (c: any) => {
     setEditando(c);
     setEditForm({
@@ -139,6 +144,9 @@ export default function RotaPage() {
   };
 
   useEffect(() => { handleBuscar(today); }, []);
+
+  // Limpa o timer do undo ao desmontar
+  useEffect(() => () => { if (undoTimerRef.current) clearTimeout(undoTimerRef.current); }, []);
 
   const handleBuscar = async (data: string) => {
     setLoading(true);
@@ -216,16 +224,47 @@ export default function RotaPage() {
   const handleConfirmarVisita = async (id: number) => {
     setConfirmandoId(id);
     const nota = notasTemp[id] || null;
+    // Salva estado anterior para possível desfazer
+    const clienteAnterior = clientes.find(c => c.id === id);
     const res = await confirmarVisitaRota(id, nota);
     if (res.success) {
       const novaLista = clientes.filter(c => c.id !== id);
       setClientes(novaLista);
       if (rotaOrganizada) setOrdemRota(prev => prev.filter(c => c.id !== id));
       setExpandidoId(null);
+      // Salva info para desfazer
+      if (clienteAnterior) {
+        setUltimaConfirmada(clienteAnterior);
+        if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+        undoTimerRef.current = setTimeout(() => setUltimaConfirmada(null), 15000);
+      }
     } else {
       alert('Erro ao confirmar visita: ' + res.error);
     }
     setConfirmandoId(null);
+  };
+
+  // Desfaz a última visita confirmada
+  const handleDesfazerVisita = async () => {
+    if (!ultimaConfirmada) return;
+    setDesfazendoId(ultimaConfirmada.id);
+    const res = await desfazerVisitaRota(ultimaConfirmada.id, {
+      status: ultimaConfirmada.status,
+      tipo_entrada: ultimaConfirmada.tipo_entrada,
+      revisitar: ultimaConfirmada.revisitar
+        ? new Date(ultimaConfirmada.revisitar).toISOString().split('T')[0]
+        : null,
+      observacao_atendimento: ultimaConfirmada.observacao_atendimento || null,
+    });
+    if (res.success) {
+      // Devolve o cliente para a lista
+      setClientes(prev => [ultimaConfirmada, ...prev]);
+      if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+      setUltimaConfirmada(null);
+    } else {
+      alert('Erro ao desfazer: ' + res.error);
+    }
+    setDesfazendoId(null);
   };
 
   // Remove apenas o agendamento (sem marcar visita)
@@ -614,6 +653,33 @@ export default function RotaPage() {
                 <Save className="w-4 h-4" />{salvandoEdicao ? 'Salvando...' : 'Salvar'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast de desfazer visita */}
+      {ultimaConfirmada && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-md animate-in slide-in-from-bottom-4 duration-300">
+          <div className="bg-emerald-950 border border-emerald-500/50 rounded-2xl px-4 py-3 flex items-center gap-3 shadow-2xl shadow-emerald-900/50">
+            <CheckCircle className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-emerald-400 truncate">Visita confirmada!</p>
+              <p className="text-xs text-emerald-600 truncate">{ultimaConfirmada.nome_fantasia}</p>
+            </div>
+            <button
+              onClick={handleDesfazerVisita}
+              disabled={desfazendoId !== null}
+              className="flex-shrink-0 flex items-center gap-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 text-emerald-400 px-3 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-50"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              {desfazendoId !== null ? '...' : 'Desfazer'}
+            </button>
+            <button
+              onClick={() => { if (undoTimerRef.current) clearTimeout(undoTimerRef.current); setUltimaConfirmada(null); }}
+              className="p-1 text-emerald-600 hover:text-emerald-400 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         </div>
       )}

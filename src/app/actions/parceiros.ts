@@ -81,13 +81,14 @@ export async function registrarVisita(data: {
   observacao?: string;
 }) {
   try {
-    await pool.query(`
+    const res = await pool.query(`
       INSERT INTO visitas_parceiro (parceiro_id, tipo_visita, comprou, valor_pedido, observacao)
       VALUES ($1, $2, $3, $4, $5)
+      RETURNING id
     `, [data.parceiro_id, data.tipo_visita, data.comprou, data.valor_pedido || null, data.observacao || null]);
-    return { success: true };
+    return { success: true, visitaId: res.rows[0]?.id as number };
   } catch (e: any) {
-    return { success: false, error: e.message };
+    return { success: false, error: e.message, visitaId: null };
   }
 }
 
@@ -310,6 +311,64 @@ export async function buscarRankingRecorrencia() {
 export async function toggleAtivoParceiro(id: number, ativo: boolean) {
   try {
     await pool.query('UPDATE parceiros SET ativo = $2 WHERE id = $1', [id, ativo]);
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+// ============================================================
+// BUSCAR LEADS PRÓXIMOS (mesmo bairro/cidade do parceiro)
+// ============================================================
+export async function buscarLeadsPorBairro(cidade: string | null, bairro: string | null) {
+  try {
+    let query: string;
+    let params: any[];
+
+    if (bairro) {
+      // Busca pelo bairro usando ILIKE (ignora case e variações)
+      query = `
+        SELECT id, nome_fantasia, endereco, bairro, cidade, status, prioridade, telefone, nome_contato
+        FROM clientes
+        WHERE bairro ILIKE $1
+          AND status NOT IN ('Cliente', 'Descartado', 'Excluído')
+        ORDER BY prioridade DESC, nome_fantasia ASC
+        LIMIT 10
+      `;
+      params = [bairro];
+      const res = await pool.query(query, params);
+      // Se encontrou resultados, retorna
+      if (res.rows.length > 0) return { success: true, data: res.rows };
+      // Senão, tenta pela cidade como fallback
+    }
+
+    if (cidade) {
+      // Fallback: mesma cidade
+      query = `
+        SELECT id, nome_fantasia, endereco, bairro, cidade, status, prioridade, telefone, nome_contato
+        FROM clientes
+        WHERE cidade ILIKE $1
+          AND status NOT IN ('Cliente', 'Descartado', 'Excluído')
+        ORDER BY prioridade DESC, nome_fantasia ASC
+        LIMIT 10
+      `;
+      params = [cidade];
+      const res = await pool.query(query, params);
+      return { success: true, data: res.rows };
+    }
+
+    return { success: true, data: [] };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+// ============================================================
+// DESFAZER VISITA (deleta do banco para undo limpo)
+// ============================================================
+export async function desfazerVisitaParceiro(visitaId: number, parceiroId: number, comprou: boolean) {
+  try {
+    await pool.query('DELETE FROM visitas_parceiro WHERE id = $1', [visitaId]);
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e.message };
