@@ -157,11 +157,93 @@ export async function buscarCampanhasAtivas() {
   return res.rows;
 }
 
+// Busca TODAS as campanhas (para o painel de gestão)
+export async function buscarTodasCampanhas() {
+  const res = await pool.query(`
+    SELECT 
+      c.*,
+      (c.data_alvo - CURRENT_DATE) as dias_restantes,
+      (SELECT COUNT(*) FROM campanha_parceiros cp WHERE cp.campanha_id = c.id AND cp.abordado = true)::INTEGER as total_abordados,
+      (SELECT COUNT(*) FROM campanha_parceiros cp WHERE cp.campanha_id = c.id AND cp.comprou = true)::INTEGER as total_compraram
+    FROM campanhas c
+    ORDER BY c.ativa DESC, c.data_alvo ASC
+  `);
+  return res.rows;
+}
+
+// Cria uma campanha manual via interface
+export async function criarCampanha(data: {
+  nome: string;
+  data_alvo: string;
+  descricao?: string;
+  dias_antecedencia?: number;
+}) {
+  try {
+    const res = await pool.query(`
+      INSERT INTO campanhas (nome, data_alvo, descricao, dias_antecedencia, ativa)
+      VALUES ($1, $2, $3, $4, true)
+      RETURNING id, nome, data_alvo
+    `, [
+      data.nome.trim(),
+      data.data_alvo,
+      data.descricao?.trim() || null,
+      data.dias_antecedencia || 7,
+    ]);
+    return { success: true, campanha: res.rows[0] };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+// Ativa ou desativa uma campanha
+export async function toggleCampanhaAtiva(id: number, ativa: boolean) {
+  try {
+    await pool.query('UPDATE campanhas SET ativa = $2 WHERE id = $1', [id, ativa]);
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+// Encerra definitivamente (marca inativa)
+export async function encerrarCampanha(id: number) {
+  try {
+    await pool.query('UPDATE campanhas SET ativa = false WHERE id = $1', [id]);
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
 export async function buscarParticipantesCampanha(campanhaId: number) {
   const res = await pool.query(
     'SELECT parceiro_id, abordado, comprou FROM campanha_parceiros WHERE campanha_id = $1',
     [campanhaId]
   );
+  return res.rows;
+}
+
+// Todos os parceiros com flag de participação nessa campanha
+export async function buscarParceirosComParticipacao(campanhaId: number) {
+  const res = await pool.query(`
+    SELECT
+      p.id,
+      p.nome_fantasia,
+      p.cidade,
+      p.bairro,
+      p.regiao,
+      p.perfil,
+      p.telefone,
+      cp.abordado,
+      cp.comprou,
+      cp.data_abordagem,
+      CASE WHEN cp.parceiro_id IS NOT NULL THEN true ELSE false END as na_campanha
+    FROM parceiros p
+    LEFT JOIN campanha_parceiros cp
+      ON cp.parceiro_id = p.id AND cp.campanha_id = $1
+    WHERE p.ativo = true
+    ORDER BY na_campanha DESC, p.regiao, p.nome_fantasia
+  `, [campanhaId]);
   return res.rows;
 }
 
@@ -175,6 +257,33 @@ export async function marcarParceiroNaCampanha(campanhaId: number, parceiroId: n
         comprou = $3,
         data_abordagem = CURRENT_DATE
     `, [campanhaId, parceiroId, comprou]);
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+// Adiciona parceiro à campanha (sem marcar abordado ainda)
+export async function adicionarParceiroCampanha(campanhaId: number, parceiroId: number) {
+  try {
+    await pool.query(`
+      INSERT INTO campanha_parceiros (campanha_id, parceiro_id, abordado, comprou)
+      VALUES ($1, $2, false, false)
+      ON CONFLICT (campanha_id, parceiro_id) DO NOTHING
+    `, [campanhaId, parceiroId]);
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+// Remove parceiro da campanha
+export async function removerParceiroDaCampanha(campanhaId: number, parceiroId: number) {
+  try {
+    await pool.query(
+      'DELETE FROM campanha_parceiros WHERE campanha_id = $1 AND parceiro_id = $2',
+      [campanhaId, parceiroId]
+    );
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e.message };

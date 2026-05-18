@@ -1,33 +1,33 @@
 @import "tailwindcss";
 
 :root {
-  /* Paleta Carvão/Musgo */
-  --background: #0d1110;
+  /* Paleta Carvão/Musgo - Cinematic */
+  --background: #090c0b;
   --foreground: #eef2f0;
   
-  --card: #141a18;
+  --card: rgba(20, 26, 24, 0.45);
   --card-foreground: #eef2f0;
   
   --popover: #141a18;
   --popover-foreground: #eef2f0;
   
-  --primary: #00e676; /* Verde Musgo vibrante para botões */
+  --primary: #00e676; /* Verde Musgo vibrante */
   --primary-foreground: #000000;
   
-  --secondary: #1a2922; /* Musgo escuro */
+  --secondary: #1a2922;
   --secondary-foreground: #a0d1b4;
   
-  --muted: #1e2623;
+  --muted: rgba(30, 38, 35, 0.6);
   --muted-foreground: #8fa69a;
   
-  --accent: #1e3629;
+  --accent: rgba(30, 54, 41, 0.8);
   --accent-foreground: #00e676;
   
-  --border: #232d29;
-  --input: #1e2623;
-  --ring: #00e676;
+  --border: rgba(35, 45, 41, 0.6);
+  --input: rgba(30, 38, 35, 0.8);
+  --ring: rgba(0, 230, 118, 0.4);
   
-  --radius: 0.75rem;
+  --radius: 0.85rem;
 }
 
 @theme inline {
@@ -61,20 +61,74 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
+  /* Radiant background depth */
+  background-image: radial-gradient(circle at top center, rgba(0,230,118,0.03) 0%, transparent 60%),
+                    radial-gradient(circle at bottom left, rgba(20,26,24,0.8) 0%, transparent 50%);
+  background-attachment: fixed;
 }
 
-/* Utilitários premium */
+/* ── Antigravity Premium Utilities ── */
+
+/* Glass Panel: Soft blur, subtle border */
 .glass-panel {
-  background: rgba(20, 26, 24, 0.6);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 24px -4px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
+/* Antigravity Card: spatial depth, smooth lift */
+.ag-card {
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.4s ease;
+  will-change: transform, box-shadow;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+.ag-card:hover {
+  transform: translateY(-4px) translateZ(0);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), 0 0 0 1px var(--ring);
+  border-color: transparent;
+}
+
+/* Magnetic Button: responsive to interactions */
 .magnetic-button {
-  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease, background 0.2s ease;
+  will-change: transform;
+}
+.magnetic-button:active {
+  transform: scale(0.96);
 }
 .magnetic-button:hover {
   transform: translateY(-2px) scale(1.02);
   box-shadow: 0 10px 20px -10px var(--primary);
 }
+
+/* Stagger Enter Animations: performant drop-in */
+@keyframes slideUpFade {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) translateZ(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) translateZ(0);
+  }
+}
+
+.stagger-item {
+  opacity: 0;
+  animation: slideUpFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity;
+}
+
+/* nth-child delays for sequential stagger (up to 10 items) */
+.stagger-item:nth-child(1) { animation-delay: 0.05s; }
+.stagger-item:nth-child(2) { animation-delay: 0.10s; }
+.stagger-item:nth-child(3) { animation-delay: 0.15s; }
+.stagger-item:nth-child(4) { animation-delay: 0.20s; }
+.stagger-item:nth-child(5) { animation-delay: 0.25s; }
+.stagger-item:nth-child(6) { animation-delay: 0.30s; }
+.stagger-item:nth-child(7) { animation-delay: 0.35s; }
+.stagger-item:nth-child(8) { animation-delay: 0.40s; }
+.stagger-item:nth-child(9) { animation-delay: 0.45s; }
+.stagger-item:nth-child(10) { animation-delay: 0.50s; }

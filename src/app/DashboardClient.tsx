@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Users, TrendingUp, AlertCircle, MapPin, CheckCircle, RefreshCcw, X, Phone, Mail, Clock, Map as MapIcon, FileText, Search, Edit2, Save, Plus, Navigation, Share2, DollarSign, CalendarClock, Route } from 'lucide-react';
+import { Users, TrendingUp, AlertCircle, MapPin, CheckCircle, RefreshCcw, X, Phone, Mail, Clock, Map as MapIcon, FileText, Search, Edit2, Save, Plus, Navigation, Share2, DollarSign, CalendarClock, Route, UserCheck } from 'lucide-react';
 import { updateClienteStatus, marcarVisita, salvarEdicaoCliente, appendNotaAtendimento, agendarRevisita, marcarComoClienteBase } from './actions';
 import { reverseGeocode, adicionarLeadManual } from './actions/radar';
 import { buscarSubRedes } from './actions/tabelas';
@@ -315,36 +315,55 @@ export default function DashboardClient({ clientes, metricas, prazos = [], redes
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] p-4 md:p-6 space-y-8 font-sans">
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4 md:mb-8">
+      {/* ── Header ── */}
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-4 md:p-6 border-b border-[var(--border)] bg-[rgba(9,12,11,0.8)] backdrop-blur-xl sticky top-0 z-50">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-[var(--primary)] to-emerald-400">
+          <h1 className="text-2xl md:text-3xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-[var(--primary)] to-cyan-400">
             311 Representações
           </h1>
-          <p className="text-[var(--muted-foreground)] text-sm md:text-base">Visão Operacional de Rua</p>
+          <p className="text-[var(--muted-foreground)] text-sm md:text-base font-medium">Gestão de Leads</p>
         </div>
         
         <div className="flex items-center gap-2 flex-wrap">
-          <Link href="/parceiros" className="magnetic-button flex items-center gap-2 bg-[var(--card)] border border-cyan-500 text-cyan-400 px-4 py-2 rounded-full font-bold hover:bg-cyan-500 hover:text-black transition-all">
-            <Users className="w-4 h-4" /> Parceiros
+          <Link href="/" className="magnetic-button flex items-center gap-2 bg-[var(--card)] border border-[var(--primary)] text-[var(--primary)] px-4 py-2 rounded-full font-bold hover:bg-[var(--primary)] hover:text-black transition-all text-sm shadow-[0_0_15px_rgba(0,230,118,0.1)]">
+            <Users className="w-4 h-4" /> Home
           </Link>
-          <Link href="/rota" className="magnetic-button flex items-center gap-2 bg-[var(--card)] border border-amber-500 text-amber-400 px-4 py-2 rounded-full font-bold hover:bg-amber-500 hover:text-black transition-all">
+          <Link href="/parceiros" className="magnetic-button flex items-center gap-2 bg-[var(--card)] border border-cyan-500 text-cyan-400 px-4 py-2 rounded-full font-bold hover:bg-cyan-500 hover:text-black transition-all text-sm">
+            <UserCheck className="w-4 h-4" /> Parceiros
+          </Link>
+          <Link href="/rota" className="magnetic-button flex items-center gap-2 bg-[var(--card)] border border-amber-500 text-amber-400 px-4 py-2 rounded-full font-bold hover:bg-amber-500 hover:text-black transition-all text-sm">
             <Route className="w-4 h-4" /> Minha Rota
           </Link>
-          <Link href="/relatorios" className="magnetic-button flex items-center gap-2 bg-[var(--card)] border border-violet-500 text-violet-400 px-4 py-2 rounded-full font-bold hover:bg-violet-500 hover:text-black transition-all">
-            <TrendingUp className="w-4 h-4" /> Relatórios
-          </Link>
-          <Link href="/radar" className="magnetic-button flex items-center gap-2 bg-[var(--card)] border border-[var(--primary)] text-[var(--primary)] px-4 py-2 rounded-full font-bold hover:bg-[var(--primary)] hover:text-black transition-all">
-            <Search className="w-4 h-4" /> Radar de Leads
+          <Link href="/radar" className="magnetic-button flex items-center gap-2 bg-[var(--card)] border border-violet-500 text-violet-400 px-4 py-2 rounded-full font-bold hover:bg-violet-500 hover:text-black transition-all text-sm">
+            <Search className="w-4 h-4" /> Radar
           </Link>
         </div>
       </header>
 
-      {/* Metrics */}
+      {/* Metrics — exclui descartados e CLIENTE_BASE */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
-        <MetricCard icon={<Users />} title="Total de Leads" value={clientes.length.toString()} />
+        <MetricCard icon={<Users />} title="Leads Ativos" value={clientes.filter(c => c.status !== 'Descartado' && c.tipo_entrada !== 'CLIENTE_BASE').length.toString()} />
         <MetricCard icon={<CheckCircle className="text-emerald-400" />} title="Convertidos" value={clientes.filter(c => c.status === 'Cliente' && c.tipo_entrada !== 'CLIENTE_BASE').length.toString()} />
         <MetricCard icon={<Clock className="text-amber-400" />} title="Em Andamento" value={clientes.filter(c => c.status === 'Em Andamento').length.toString()} className="col-span-2 md:col-span-1" />
       </div>
+
+      {/* Mini-indicador de arquivados */}
+      {metricas.descartados > 0 && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          background: 'rgba(100,100,100,0.06)',
+          border: '1px solid rgba(100,100,100,0.15)',
+          borderRadius: '12px',
+          padding: '0.5rem 1rem',
+        }}>
+          <span style={{ fontSize: '0.78rem', color: 'var(--muted-foreground)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <span style={{ fontSize: '0.85rem' }}>🗄</span>
+            <strong style={{ color: 'var(--muted-foreground)' }}>{metricas.descartados}</strong> descartados arquivados — acesse pela aba <em>Arquivados</em>
+          </span>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Main List */}
@@ -375,13 +394,19 @@ export default function DashboardClient({ clientes, metricas, prazos = [], redes
               { id: 'Andamento', label: 'Em Andamento' },
               { id: 'Rota', label: 'Rota de Visitas' },
               { id: 'Convertidos', label: 'Convertidos' },
-              { id: 'Descartados', label: 'Descartados' },
-              { id: 'Todos', label: 'Ver Todos' }
+              { id: 'Todos', label: 'Ver Todos' },
+              { id: 'Descartados', label: '🗄 Arquivados', archived: true },
             ].map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`whitespace-nowrap px-4 py-2 text-sm font-bold border-b-2 transition-colors ${activeTab === tab.id ? 'border-[var(--primary)] text-[var(--primary)]' : 'border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]'}`}
+                className={`whitespace-nowrap px-4 py-2 text-sm font-bold border-b-2 transition-colors ${
+                  activeTab === tab.id
+                    ? tab.archived
+                      ? 'border-slate-500 text-slate-400'
+                      : 'border-[var(--primary)] text-[var(--primary)]'
+                    : 'border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+                }`}
               >
                 {tab.label}
               </button>
@@ -430,10 +455,10 @@ export default function DashboardClient({ clientes, metricas, prazos = [], redes
               <p className="text-center text-[var(--muted-foreground)] py-8">Nenhum cliente encontrado nessa visão.</p>
             ) : (
               clientesFiltrados.map(cliente => (
-                <div key={cliente.id} className="relative bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-md)] p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-[var(--primary)]/50 transition-colors overflow-hidden">
+                <div key={cliente.id} className={`relative glass-panel stagger-item rounded-[var(--radius-md)] p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-colors overflow-hidden ${activeTab === 'Descartados' ? 'opacity-60 hover:opacity-80' : 'ag-card hover:border-[var(--primary)]/50'}`}>
                   
                   {/* Cor Lateral Magnética */}
-                  <div className={`absolute left-0 top-0 bottom-0 w-1 ${cliente.prioridade === 'ALTA' ? 'bg-rose-500' : cliente.prioridade === 'BAIXA' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                  <div className={`absolute left-0 top-0 bottom-0 w-1 ${activeTab === 'Descartados' ? 'bg-slate-600' : cliente.prioridade === 'ALTA' ? 'bg-rose-500' : cliente.prioridade === 'BAIXA' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
 
                   <div className="flex-1 cursor-pointer pl-3" onClick={() => setSelectedCliente(cliente)}>
                     <h3 className="font-bold text-lg hover:text-[var(--primary)] transition-colors">{cliente.nome_fantasia}</h3>
@@ -537,7 +562,7 @@ export default function DashboardClient({ clientes, metricas, prazos = [], redes
       {/* Dossiê Modal (Aparece ao clicar em um cliente) */}
       {selectedCliente && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-[var(--card)] w-full max-w-2xl rounded-t-2xl sm:rounded-2xl border border-[var(--border)] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+          <div className="glass-panel w-full max-w-2xl rounded-t-2xl sm:rounded-2xl border border-[var(--border)] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
             <div className="p-6 border-b border-[var(--border)] flex justify-between items-start bg-[var(--secondary)]/30">
               <div>
                 <h2 className="text-2xl font-bold text-[var(--primary)]">{selectedCliente.nome_fantasia}</h2>
@@ -871,7 +896,7 @@ export default function DashboardClient({ clientes, metricas, prazos = [], redes
       {/* Modal de Cadastro Rápido */}
       {isAddingNew && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-[var(--card)] w-full max-w-lg rounded-t-2xl sm:rounded-2xl border border-[var(--border)] shadow-2xl overflow-hidden flex flex-col">
+          <div className="glass-panel w-full max-w-lg rounded-t-2xl sm:rounded-2xl border border-[var(--border)] shadow-2xl overflow-hidden flex flex-col">
             <div className="p-6 border-b border-[var(--border)] flex justify-between items-center bg-[var(--secondary)]/30">
               <h2 className="text-xl font-bold flex items-center gap-2">
                 <MapPin className="w-5 h-5 text-[var(--primary)]" /> Novo Lead na Rota
@@ -954,7 +979,7 @@ export default function DashboardClient({ clientes, metricas, prazos = [], redes
 
 function MetricCard({ title, value, icon, className = "" }: { title: string, value: string | number, icon: React.ReactNode, className?: string }) {
   return (
-    <div className={`glass-panel rounded-[var(--radius)] p-4 md:p-6 relative overflow-hidden group ${className}`}>
+    <div className={`glass-panel ag-card stagger-item rounded-[var(--radius)] p-4 md:p-6 relative overflow-hidden group ${className}`}>
       <div className="flex items-center gap-2 md:gap-3 mb-2">
         <div className="[&>svg]:w-5 [&>svg]:h-5 md:[&>svg]:w-6 md:[&>svg]:h-6 text-[var(--primary)]">
           {icon}

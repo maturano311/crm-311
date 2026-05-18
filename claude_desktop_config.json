@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "C:\\Users\\matur"]
+    },
+    "powershell": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-powershell"]
+    }
+  }
+}

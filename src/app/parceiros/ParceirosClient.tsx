@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { Users, AlertCircle, MapPin, X, Phone, Search, Eye, Share2, DollarSign, FileText, ChevronLeft, Calendar, ShoppingCart, Navigation, Pencil, RotateCcw, CheckCircle } from 'lucide-react';
+import { Users, AlertCircle, MapPin, X, Phone, Search, Eye, Share2, DollarSign, FileText, ChevronLeft, Calendar, ShoppingCart, Navigation, Pencil, RotateCcw, CheckCircle, Route } from 'lucide-react';
 import { registrarVisita, buscarHistoricoVisitas, atualizarParceiro, toggleAtivoParceiro, marcarParceiroNaCampanha, buscarParticipantesCampanha, buscarRankingRecorrencia, cancelarVisita, buscarLeadsPorBairro, desfazerVisitaParceiro } from '../actions/parceiros';
 import { agendarRevisita } from '../actions';
 import Link from 'next/link';
@@ -525,22 +525,26 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] p-4 md:p-6 space-y-6 font-sans">
-      {/* Header */}
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      {/* ── Header ── */}
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-4 md:p-6 border-b border-[var(--border)] bg-[rgba(9,12,11,0.8)] backdrop-blur-xl sticky top-0 z-50 -mx-4 md:-mx-6 -mt-4 md:-mt-6 mb-6">
         <div>
-          <div className="flex items-center gap-3 mb-1">
+          <h1 className="text-2xl md:text-3xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-[var(--primary)] flex items-center gap-2">
             <Link href="/" className="text-[var(--muted-foreground)] hover:text-[var(--primary)] transition-colors">
-              <ChevronLeft className="w-5 h-5" />
+              <ChevronLeft className="w-6 h-6" />
             </Link>
-            <h1 className="text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-emerald-400">
-              Carteira de Parceiros
-            </h1>
-          </div>
-          <p className="text-[var(--muted-foreground)] text-sm md:text-base pl-8">Gestão de visitas e recorrência</p>
+            Carteira de Parceiros
+          </h1>
+          <p className="text-[var(--muted-foreground)] text-sm md:text-base font-medium pl-8">Gestão de visitas e recorrência</p>
         </div>
-        <Link href="/" className="magnetic-button flex items-center gap-2 bg-[var(--card)] border border-[var(--primary)] text-[var(--primary)] px-4 py-2 rounded-full font-bold hover:bg-[var(--primary)] hover:text-black transition-all text-sm">
-          <Users className="w-4 h-4" /> Painel de Leads
-        </Link>
+        
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link href="/" className="magnetic-button flex items-center gap-2 bg-[var(--card)] border border-[var(--primary)] text-[var(--primary)] px-4 py-2 rounded-full font-bold hover:bg-[var(--primary)] hover:text-black transition-all text-sm shadow-[0_0_15px_rgba(0,230,118,0.1)]">
+            <Users className="w-4 h-4" /> Home
+          </Link>
+          <Link href="/leads" className="magnetic-button flex items-center gap-2 bg-[var(--card)] border border-amber-500 text-amber-400 px-4 py-2 rounded-full font-bold hover:bg-amber-500 hover:text-black transition-all text-sm">
+            <Route className="w-4 h-4" /> Leads
+          </Link>
+        </div>
       </header>
 
       {/* Métricas */}
@@ -613,7 +617,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
       </div>
 
       {/* Lista de Parceiros */}
-      <div className="glass-panel rounded-[var(--radius)] p-4 md:p-6">
+      <div className="glass-panel stagger-item rounded-[var(--radius)] p-4 md:p-6">
 
         {/* Tabs de Sequência */}
         <div className="flex gap-0 mb-5 border-b border-[var(--border)] overflow-x-auto">
@@ -744,10 +748,10 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
                 </div>
               )}
             <div
-              className={`relative bg-[var(--card)] border rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 transition-colors cursor-pointer overflow-hidden ${
+              className={`relative glass-panel stagger-item border rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 transition-colors cursor-pointer overflow-hidden ${
                 foiVisitado
                   ? 'border-emerald-500/20 opacity-60 hover:opacity-80'
-                  : 'border-[var(--border)] hover:border-cyan-400/50'
+                  : 'border-transparent hover:border-[var(--primary)]'
               }`}
               onClick={() => abrirDossie(p)}
             >
@@ -1620,7 +1624,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
 function MetricCard({ title, value, icon, onClick, active, subtitle }: { title: string; value: string | number; icon: React.ReactNode; onClick?: () => void; active?: boolean; subtitle?: string }) {
   return (
     <div
-      className={`glass-panel rounded-xl p-4 relative overflow-hidden transition-colors ${onClick ? 'cursor-pointer hover:border-emerald-400/30' : ''} ${active ? 'border border-rose-500/60 bg-rose-500/5' : ''}`}
+      className={`glass-panel ag-card stagger-item rounded-xl p-4 relative overflow-hidden transition-colors ${onClick ? 'cursor-pointer hover:border-emerald-400/30' : ''} ${active ? 'border border-rose-500/60 bg-rose-500/5' : ''}`}
       onClick={onClick}
     >
       <div className="flex items-center gap-2 mb-1">
