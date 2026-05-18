@@ -131,20 +131,13 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
   const tabKey = String(activeTab);
   const rotaOrganizada = rotasPorTab[tabKey]?.organizada ?? false;
   const ordemRota = rotasPorTab[tabKey]?.ordem ?? [];
-  const [visitadosIds, setVisitadosIds] = useState<Set<number>>(new Set());
   const [visitaModal, setVisitaModal] = useState<VisitaModalState | null>(null);
 
-  // Semeia visitadosIds com parceiros visitados essa semana (via banco)
-  useEffect(() => {
-    const diasDesdeSegunda = (new Date().getDay() + 6) % 7; // 0=seg … 6=dom
-    const ids = new Set<number>();
-    parceiros.forEach(p => {
-      if (p.dias_sem_visita !== null && Number(p.dias_sem_visita) <= diasDesdeSegunda) {
-        ids.add(p.id);
-      }
-    });
-    if (ids.size > 0) setVisitadosIds(ids);
-  }, []);
+  // Dias corridos desde segunda-feira dessa semana (0=seg, 1=ter, …, 6=dom)
+  const diasDesdeSegunda = (new Date().getDay() + 6) % 7;
+  const foiVisitadoSemana = (p: any) =>
+    p.dias_sem_visita !== null && Number(p.dias_sem_visita) <= diasDesdeSegunda;
+
   const [salvandoVisita, setSalvandoVisita] = useState(false);
   const [editModal, setEditModal] = useState<EditModalState | null>(null);
   const [salvandoEdicao, setSalvandoEdicao] = useState(false);
@@ -304,28 +297,30 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
     if (busca) return activeTab === 'todos' ? parcFiltrados : parceirosVisiveis;
 
     if (activeTab === 'todos') {
-      // Aba Todos: visitados OCULTOS — mesma lógica das abas de sequência
-      return parcFiltrados.filter(p => !visitadosIds.has(p.id));
+      // Aba Todos: visão geral — não-visitados primeiro, visitados no final (sem ocultar)
+      const naoVisitados = parcFiltrados.filter(p => !foiVisitadoSemana(p));
+      const visitados = parcFiltrados.filter(p => foiVisitadoSemana(p));
+      return [...naoVisitados, ...visitados];
     }
 
-    // Abas de Sequência: visitados OCULTOS — lista só quem ainda precisa de visita
-    const pendentes = parceirosVisiveis.filter(p => !visitadosIds.has(p.id));
+    // Abas de Sequência: oculta quem já foi visitado essa semana
+    const pendentes = parceirosVisiveis.filter(p => !foiVisitadoSemana(p));
 
     if (!rotaOrganizada) return pendentes;
 
     // Rota organizada: mantém ordem da rota, filtrando visitados
-    const naRota = ordemRota.filter((p: any) => !visitadosIds.has(p.id));
+    const naRota = ordemRota.filter((p: any) => !foiVisitadoSemana(p));
     const idsNaRota = new Set(naRota.map((p: any) => p.id));
     const foraRota = pendentes.filter(p => !idsNaRota.has(p.id));
     return [...naRota, ...foraRota];
-  }, [rotaOrganizada, ordemRota, parceirosVisiveis, visitadosIds, activeTab, parcFiltrados, busca]);
+  }, [rotaOrganizada, ordemRota, parceirosVisiveis, activeTab, parcFiltrados, busca, localParceiros]);
 
   const handleTabChange = (tab: 'todos' | number) => {
     setActiveTab(tab);
   };
 
   const handleOrganizarRota = () => {
-    const pendentes = parceirosVisiveis.filter(p => !visitadosIds.has(p.id));
+    const pendentes = parceirosVisiveis.filter(p => !foiVisitadoSemana(p));
     const apiKey = process.env.NEXT_PUBLIC_ORS_API_KEY;
 
     const aplicarLocal = (lat?: number, lng?: number) => {
@@ -404,7 +399,6 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
       const eraPrimeiraVisitaMes = !visitaModal.parceiro.visitas_mes || visitaModal.parceiro.visitas_mes === 0;
       // Salva o parceiro e visitaId para poder desfazer
       const parceiroSnapshot = { ...visitaModal.parceiro };
-      setVisitadosIds(prev => new Set([...prev, visitaModal.parceiro.id]));
       setLocalParceiros(prev => prev.map(lp => {
         if (lp.id !== visitaModal.parceiro.id) return lp;
         const semanas = new Set<number>(lp.semanas_visitadas || []);
@@ -443,7 +437,6 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
     const res = await desfazerVisitaParceiro(ultimaVisita.visitaId, ultimaVisita.parceiro.id, ultimaVisita.comprou);
     if (res.success) {
       // Reverte o estado local
-      setVisitadosIds(prev => { const s = new Set(prev); s.delete(ultimaVisita.parceiro.id); return s; });
       setLocalParceiros(prev => prev.map(lp =>
         lp.id === ultimaVisita.parceiro.id ? ultimaVisita.parceiro : lp
       ));
@@ -496,7 +489,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
     return `Há ${dias}d`;
   };
 
-  const visitadosHoje = visitadosIds.size;
+  const visitadosHoje = localParceiros.filter(foiVisitadoSemana).length;
 
   const semComprasParceiros = useMemo(() =>
     localParceiros
@@ -619,7 +612,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
             Todos ({parcFiltrados.length})
           </button>
           {SEQUENCIAS.map((seq, i) => {
-            const count = parcFiltrados.filter(p => { const r = Number(p.regiao); return !isNaN(r) && r >= seq.min && r <= seq.max && !visitadosIds.has(p.id); }).length;
+            const count = parcFiltrados.filter(p => { const r = Number(p.regiao); return !isNaN(r) && r >= seq.min && r <= seq.max && !foiVisitadoSemana(p); }).length;
             return (
               <button key={i}
                 onClick={() => handleTabChange(i)}
@@ -720,8 +713,8 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
               }
             </div>
           ) : listaMostrada.map((p, index) => {
-            const foiVisitado = visitadosIds.has(p.id);
-            const anteriorFoiVisitado = index > 0 && visitadosIds.has(listaMostrada[index - 1].id);
+            const foiVisitado = foiVisitadoSemana(p);
+            const anteriorFoiVisitado = index > 0 && foiVisitadoSemana(listaMostrada[index - 1]);
             const primeiroDosVisitados = foiVisitado && !anteriorFoiVisitado && !busca;
             return (
             <div key={p.id}>
@@ -729,7 +722,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
                 <div className="flex items-center gap-2 py-2 px-1">
                   <div className="flex-1 h-px bg-emerald-500/20" />
                   <span className="text-[10px] font-bold text-emerald-500/60 uppercase tracking-wider whitespace-nowrap">
-                    ✓ {listaMostrada.filter(x => visitadosIds.has(x.id)).length} já visitado(s)
+                    ✓ {listaMostrada.filter(x => foiVisitadoSemana(x)).length} já visitado(s)
                   </span>
                   <div className="flex-1 h-px bg-emerald-500/20" />
                 </div>
