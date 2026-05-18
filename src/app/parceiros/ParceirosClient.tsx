@@ -20,6 +20,16 @@ function getMondayStr() {
   return seg.toISOString().slice(0, 10); // ex: "2026-05-04"
 }
 
+// Retorna a semana do mês (1-5) considerando segunda como início da semana.
+// Ex: maio/2026 começa numa sexta → dias 1-3 = semana 1, dias 4-10 = semana 2,
+//     dias 11-17 = semana 3, dias 18-24 = semana 4.
+function getSemanaDoMes(date: Date): number {
+  const firstDay = new Date(date.getFullYear(), date.getMonth(), 1);
+  // Offset em dias desde a última segunda (segunda=0 ... domingo=6)
+  const firstDayWeekday = (firstDay.getDay() + 6) % 7;
+  return Math.floor((date.getDate() + firstDayWeekday - 1) / 7) + 1;
+}
+
 const SEQUENCIAS = [
   { label: 'Sequência 1', min: 1200, max: 1212 },
   { label: 'Sequência 2', min: 1213, max: 9999 },
@@ -416,7 +426,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
       observacao: visitaModal.obs || undefined,
     });
     if (res.success) {
-      const semanaHoje = Math.ceil(new Date().getDate() / 7);
+      const semanaHoje = getSemanaDoMes(new Date());
       const eraPrimeiraVisitaMes = !visitaModal.parceiro.visitas_mes || visitaModal.parceiro.visitas_mes === 0;
       // Salva o parceiro e visitaId para poder desfazer
       const parceiroSnapshot = { ...visitaModal.parceiro };
@@ -496,7 +506,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
   };
 
   const hoje = new Date();
-  const semanaAtual = Math.ceil(hoje.getDate() / 7);
+  const semanaAtual = getSemanaDoMes(hoje);
   const totalSemanas = Math.ceil(new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate() / 7);
 
   const indicadorCor = (dias: number | null) => {
