@@ -870,24 +870,36 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
 
       {/* Modal de Registro de Visita */}
       {visitaModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-[var(--card)] w-full max-w-sm rounded-2xl border border-[var(--border)] shadow-2xl p-5 space-y-4">
-            <div className="flex justify-between items-start">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-0 sm:p-4">
+          <div className="bg-[var(--card)] w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl border border-[var(--border)] shadow-2xl flex flex-col max-h-[92vh]">
+
+            {/* Header fixo — sempre visível, X nunca some */}
+            <div className="flex justify-between items-start p-5 pb-3 flex-shrink-0 border-b border-[var(--border)]">
               <div>
                 <h3 className="font-bold text-lg text-cyan-400 leading-tight">{visitaModal.parceiro.nome_fantasia}</h3>
-                <div className="flex items-center gap-2 mt-0.5">
+                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                   <p className="text-xs text-[var(--muted-foreground)]">Registrar visita</p>
                   {visitaModal.parceiro.cod_parceiro && (
                     <span className="text-[11px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">
                       #{visitaModal.parceiro.cod_parceiro}
                     </span>
                   )}
+                  {/* Contadores semana + mês */}
+                  <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                    Sem. {(visitaModal.parceiro.semanas_visitadas || []).length}/{totalSemanas}
+                  </span>
+                  <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    Mês {visitaModal.parceiro.visitas_mes || 0}x
+                  </span>
                 </div>
               </div>
-              <button onClick={() => setVisitaModal(null)} className="p-1 hover:bg-[var(--muted)] rounded-full transition-colors">
-                <X className="w-4 h-4" />
+              <button onClick={() => setVisitaModal(null)} className="p-2 hover:bg-[var(--muted)] rounded-full transition-colors flex-shrink-0 ml-2">
+                <X className="w-5 h-5" />
               </button>
             </div>
+
+            {/* Corpo scrollável */}
+            <div className="overflow-y-auto flex-1 p-5 space-y-4">
 
             {/* Tipo */}
             <div>
@@ -996,8 +1008,9 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
               </div>
             )}
 
-            {/* Botões */}
-            <div className="flex gap-2 pt-1">
+            {/* Botões — rodapé fixo, nunca some */}
+            </div>
+            <div className="flex gap-2 p-5 pt-3 flex-shrink-0 border-t border-[var(--border)]">
               <button
                 onClick={() => setVisitaModal(null)}
                 className="flex-1 py-2.5 rounded-lg text-sm font-bold border border-[var(--border)] text-[var(--muted-foreground)] hover:border-white hover:text-white transition-all"
