@@ -294,7 +294,10 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
 
   const listaMostrada = useMemo(() => {
     // Com busca ativa: mostra todos os resultados para localizar pelo código
-    if (busca) return activeTab === 'todos' ? parcFiltrados : parceirosVisiveis;
+    if (busca) {
+      if (activeTab === 'todos') return parcFiltrados;
+      return parceirosVisiveis.filter(p => !foiVisitadoSemana(p));
+    }
 
     if (activeTab === 'todos') {
       // Aba Todos: visão geral — não-visitados primeiro, visitados no final (sem ocultar)
