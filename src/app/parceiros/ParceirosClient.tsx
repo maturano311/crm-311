@@ -311,17 +311,20 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
   }, [parcFiltrados, activeTab]);
 
   const listaMostrada = useMemo(() => {
-    // Na aba "Todos" mostra todos (visitados aparecem com estilo diferente)
-    if (activeTab === 'todos') return parcFiltrados;
-
     // Com busca ativa: mostra TODOS os resultados (inclusive visitados) para localizar pelo código
-    if (busca) return parceirosVisiveis;
+    if (busca) return activeTab === 'todos' ? parcFiltrados : parceirosVisiveis;
 
-    const naoVisitados = parceirosVisiveis.filter(p => !visitadosIds.has(p.id));
-    const visitados = parceirosVisiveis.filter(p => visitadosIds.has(p.id));
+    const base = activeTab === 'todos' ? parcFiltrados : parceirosVisiveis;
+    const naoVisitados = base.filter(p => !visitadosIds.has(p.id));
+    const visitados = base.filter(p => visitadosIds.has(p.id));
+
+    if (activeTab === 'todos') {
+      // Aba Todos: não-visitados primeiro, visitados no final com separador
+      return [...naoVisitados, ...visitados];
+    }
 
     if (!rotaOrganizada) {
-      // Visitados aparecem no FINAL (com opacity-60 já aplicada no card)
+      // Sequência sem rota: visitados aparecem no FINAL
       return [...naoVisitados, ...visitados];
     }
 
@@ -735,7 +738,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
           ) : listaMostrada.map((p, index) => {
             const foiVisitado = visitadosIds.has(p.id);
             const anteriorFoiVisitado = index > 0 && visitadosIds.has(listaMostrada[index - 1].id);
-            const primeiroDosVisitados = foiVisitado && !anteriorFoiVisitado && activeTab !== 'todos';
+            const primeiroDosVisitados = foiVisitado && !anteriorFoiVisitado && !busca;
             return (
             <div key={p.id}>
               {primeiroDosVisitados && (
