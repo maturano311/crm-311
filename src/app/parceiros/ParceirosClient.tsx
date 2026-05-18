@@ -142,14 +142,24 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
   const rotaOrganizada = rotasPorTab[tabKey]?.organizada ?? false;
   const ordemRota = rotasPorTab[tabKey]?.ordem ?? [];
   const [visitadosIds, setVisitadosIds] = useState<Set<number>>(() => {
+    const ids = new Set<number>();
+    // Carrega do localStorage
     try {
       const raw = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
       if (raw) {
-        const { semana, ids } = JSON.parse(raw);
-        if (semana === getMondayStr()) return new Set(ids as number[]);
+        const { semana, ids: stored } = JSON.parse(raw);
+        if (semana === getMondayStr()) (stored as number[]).forEach(id => ids.add(id));
       }
     } catch {}
-    return new Set();
+    // Semeia com parceiros que o banco já considera visitados essa semana
+    const today = new Date();
+    const diasDesdeSegunda = (today.getDay() + 6) % 7; // 0=seg, 1=ter, ..., 6=dom
+    parceiros.forEach(p => {
+      if (p.dias_sem_visita !== null && Number(p.dias_sem_visita) <= diasDesdeSegunda) {
+        ids.add(p.id);
+      }
+    });
+    return ids;
   });
   const [visitaModal, setVisitaModal] = useState<VisitaModalState | null>(null);
 
