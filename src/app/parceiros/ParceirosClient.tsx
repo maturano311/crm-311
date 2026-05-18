@@ -9,16 +9,6 @@ import dynamic from 'next/dynamic';
 
 const MapaRota = dynamic(() => import('./MapaRota'), { ssr: false });
 
-const STORAGE_KEY = 'parceiros_visitados_semana';
-
-function getMondayStr() {
-  const d = new Date();
-  const day = d.getDay(); // 0=Dom, 1=Seg...
-  const diff = day === 0 ? -6 : 1 - day; // volta para a segunda-feira
-  const seg = new Date(d);
-  seg.setDate(d.getDate() + diff);
-  return seg.toISOString().slice(0, 10); // ex: "2026-05-04"
-}
 
 // Retorna a semana do mês (1-5) considerando segunda como início da semana.
 // Ex: maio/2026 começa numa sexta → dias 1-3 = semana 1, dias 4-10 = semana 2,
@@ -141,37 +131,20 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
   const tabKey = String(activeTab);
   const rotaOrganizada = rotasPorTab[tabKey]?.organizada ?? false;
   const ordemRota = rotasPorTab[tabKey]?.ordem ?? [];
-  const [visitadosIds, setVisitadosIds] = useState<Set<number>>(() => {
+  const [visitadosIds, setVisitadosIds] = useState<Set<number>>(new Set());
+  const [visitaModal, setVisitaModal] = useState<VisitaModalState | null>(null);
+
+  // Semeia visitadosIds com parceiros visitados essa semana (via banco)
+  useEffect(() => {
+    const diasDesdeSegunda = (new Date().getDay() + 6) % 7; // 0=seg … 6=dom
     const ids = new Set<number>();
-    // Carrega do localStorage
-    try {
-      const raw = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
-      if (raw) {
-        const { semana, ids: stored } = JSON.parse(raw);
-        if (semana === getMondayStr()) (stored as number[]).forEach(id => ids.add(id));
-      }
-    } catch {}
-    // Semeia com parceiros que o banco já considera visitados essa semana
-    const today = new Date();
-    const diasDesdeSegunda = (today.getDay() + 6) % 7; // 0=seg, 1=ter, ..., 6=dom
     parceiros.forEach(p => {
       if (p.dias_sem_visita !== null && Number(p.dias_sem_visita) <= diasDesdeSegunda) {
         ids.add(p.id);
       }
     });
-    return ids;
-  });
-  const [visitaModal, setVisitaModal] = useState<VisitaModalState | null>(null);
-
-  // Persiste visitados no localStorage sempre que mudar
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        semana: getMondayStr(),
-        ids: [...visitadosIds],
-      }));
-    } catch {}
-  }, [visitadosIds]);
+    if (ids.size > 0) setVisitadosIds(ids);
+  }, []);
   const [salvandoVisita, setSalvandoVisita] = useState(false);
   const [editModal, setEditModal] = useState<EditModalState | null>(null);
   const [salvandoEdicao, setSalvandoEdicao] = useState(false);
