@@ -308,8 +308,11 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
 
     if (!rotaOrganizada) return pendentes;
 
-    // Rota organizada: mantém ordem da rota, filtrando visitados
-    const naRota = ordemRota.filter((p: any) => !foiVisitadoSemana(p));
+    // Rota organizada: usa dados frescos de localParceiros (ordemRota é snapshot antigo)
+    const localById = new Map(localParceiros.map(p => [p.id, p]));
+    const naRota = ordemRota
+      .map((p: any) => localById.get(p.id) ?? p)
+      .filter((p: any) => !foiVisitadoSemana(p));
     const idsNaRota = new Set(naRota.map((p: any) => p.id));
     const foraRota = pendentes.filter(p => !idsNaRota.has(p.id));
     return [...naRota, ...foraRota];
