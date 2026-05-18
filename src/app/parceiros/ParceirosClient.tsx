@@ -321,29 +321,26 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
   }, [parcFiltrados, activeTab]);
 
   const listaMostrada = useMemo(() => {
-    // Com busca ativa: mostra TODOS os resultados (inclusive visitados) para localizar pelo código
+    // Com busca ativa: mostra todos os resultados para localizar pelo código
     if (busca) return activeTab === 'todos' ? parcFiltrados : parceirosVisiveis;
 
-    const base = activeTab === 'todos' ? parcFiltrados : parceirosVisiveis;
-    const naoVisitados = base.filter(p => !visitadosIds.has(p.id));
-    const visitados = base.filter(p => visitadosIds.has(p.id));
-
     if (activeTab === 'todos') {
-      // Aba Todos: não-visitados primeiro, visitados no final com separador
+      // Aba Todos: não-visitados primeiro, visitados no final com separador visual
+      const naoVisitados = parcFiltrados.filter(p => !visitadosIds.has(p.id));
+      const visitados = parcFiltrados.filter(p => visitadosIds.has(p.id));
       return [...naoVisitados, ...visitados];
     }
 
-    if (!rotaOrganizada) {
-      // Sequência sem rota: visitados aparecem no FINAL
-      return [...naoVisitados, ...visitados];
-    }
+    // Abas de Sequência: visitados OCULTOS — lista só quem ainda precisa de visita
+    const pendentes = parceirosVisiveis.filter(p => !visitadosIds.has(p.id));
 
-    // Rota organizada: pendentes da rota + extras + visitados no final
+    if (!rotaOrganizada) return pendentes;
+
+    // Rota organizada: mantém ordem da rota, filtrando visitados
     const naRota = ordemRota.filter((p: any) => !visitadosIds.has(p.id));
     const idsNaRota = new Set(naRota.map((p: any) => p.id));
-    const foraRota = naoVisitados.filter(p => !idsNaRota.has(p.id));
-
-    return [...naRota, ...foraRota, ...visitados];
+    const foraRota = pendentes.filter(p => !idsNaRota.has(p.id));
+    return [...naRota, ...foraRota];
   }, [rotaOrganizada, ordemRota, parceirosVisiveis, visitadosIds, activeTab, parcFiltrados, busca]);
 
   const handleTabChange = (tab: 'todos' | number) => {
@@ -1415,14 +1412,14 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
         />
       )}
 
-      {/* Dossiê Modal */}
+      {/* Dossiê Modal — sempre centralizado, fecha ao clicar fora */}
       {selectedParceiro && (
         <div
-          className="fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+          className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
           onClick={() => setSelectedParceiro(null)}
         >
           <div
-            className="bg-[var(--card)] w-full max-w-2xl rounded-t-2xl sm:rounded-2xl border border-[var(--border)] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+            className="bg-[var(--card)] w-full max-w-2xl rounded-2xl border border-[var(--border)] shadow-2xl overflow-hidden max-h-[85vh] flex flex-col"
             onClick={e => e.stopPropagation()}
           >
             <div className="p-5 border-b border-[var(--border)] flex justify-between items-start bg-[var(--secondary)]/30 flex-shrink-0">
