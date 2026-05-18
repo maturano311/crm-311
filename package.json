@@ -9,7 +9,6 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@notionhq/client": "^5.20.0",
     "@types/leaflet": "^1.9.21",
     "dotenv": "^17.4.2",
     "leaflet": "^1.9.4",
@@ -17,8 +16,7 @@
     "next": "16.2.4",
     "pg": "^8.20.0",
     "react": "19.2.4",
-    "react-dom": "19.2.4",
-    "react-leaflet": "^5.0.0"
+    "react-dom": "19.2.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

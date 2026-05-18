@@ -141,21 +141,17 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
   const tabKey = String(activeTab);
   const rotaOrganizada = rotasPorTab[tabKey]?.organizada ?? false;
   const ordemRota = rotasPorTab[tabKey]?.ordem ?? [];
-  const [visitadosIds, setVisitadosIds] = useState<Set<number>>(new Set());
-  const [visitaModal, setVisitaModal] = useState<VisitaModalState | null>(null);
-
-  // Carrega visitados da semana atual do localStorage
-  useEffect(() => {
+  const [visitadosIds, setVisitadosIds] = useState<Set<number>>(() => {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
       if (raw) {
         const { semana, ids } = JSON.parse(raw);
-        if (semana === getMondayStr()) {
-          setVisitadosIds(new Set(ids as number[]));
-        }
+        if (semana === getMondayStr()) return new Set(ids as number[]);
       }
     } catch {}
-  }, []);
+    return new Set();
+  });
+  const [visitaModal, setVisitaModal] = useState<VisitaModalState | null>(null);
 
   // Persiste visitados no localStorage sempre que mudar
   useEffect(() => {
@@ -325,10 +321,8 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
     if (busca) return activeTab === 'todos' ? parcFiltrados : parceirosVisiveis;
 
     if (activeTab === 'todos') {
-      // Aba Todos: não-visitados primeiro, visitados no final com separador visual
-      const naoVisitados = parcFiltrados.filter(p => !visitadosIds.has(p.id));
-      const visitados = parcFiltrados.filter(p => visitadosIds.has(p.id));
-      return [...naoVisitados, ...visitados];
+      // Aba Todos: visitados OCULTOS — mesma lógica das abas de sequência
+      return parcFiltrados.filter(p => !visitadosIds.has(p.id));
     }
 
     // Abas de Sequência: visitados OCULTOS — lista só quem ainda precisa de visita
