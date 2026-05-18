@@ -1417,9 +1417,15 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
 
       {/* Dossiê Modal */}
       {selectedParceiro && (
-        <div className="fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-[var(--card)] w-full max-w-2xl rounded-t-2xl sm:rounded-2xl border border-[var(--border)] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-            <div className="p-5 border-b border-[var(--border)] flex justify-between items-start bg-[var(--secondary)]/30">
+        <div
+          className="fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+          onClick={() => setSelectedParceiro(null)}
+        >
+          <div
+            className="bg-[var(--card)] w-full max-w-2xl rounded-t-2xl sm:rounded-2xl border border-[var(--border)] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="p-5 border-b border-[var(--border)] flex justify-between items-start bg-[var(--secondary)]/30 flex-shrink-0">
               <div>
                 <h2 className="text-xl font-bold text-cyan-400">{selectedParceiro.nome_fantasia}</h2>
                 <p className="text-xs text-[var(--muted-foreground)] mt-1">
@@ -1427,7 +1433,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
                   {selectedParceiro.regiao && <span className="ml-2 px-1.5 py-0.5 bg-[var(--secondary)] rounded font-bold">R{selectedParceiro.regiao}</span>}
                 </p>
               </div>
-              <button onClick={() => setSelectedParceiro(null)} className="p-2 hover:bg-[var(--muted)] rounded-full transition-colors">
+              <button onClick={() => setSelectedParceiro(null)} className="p-2 hover:bg-[var(--muted)] rounded-full transition-colors flex-shrink-0 ml-2" title="Fechar">
                 <X className="w-5 h-5" />
               </button>
             </div>
