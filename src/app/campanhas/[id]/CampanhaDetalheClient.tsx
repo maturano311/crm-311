@@ -35,6 +35,7 @@ interface Campanha {
   total_abordados: number;
   total_compraram: number;
   total_participantes: number;
+  rede: string | null;
 }
 
 function statusCor(dias: number, ativa: boolean) {
@@ -58,7 +59,7 @@ export default function CampanhaDetalheClient({
   const [busca, setBusca] = useState('');
   const [filtroRegiao, setFiltroRegiao] = useState('');
   const [filtroPerfil, setFiltroPerfil] = useState('varejo');
-  const [filtroTabela, setFiltroTabela] = useState('');
+  const [filtroTabela, setFiltroTabela] = useState(campanha.rede || '');
   const [aba, setAba] = useState<'na_campanha' | 'adicionar'>('na_campanha');
   const [loadingId, setLoadingId] = useState<number | null>(null);
 

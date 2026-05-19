@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { Users, AlertCircle, MapPin, X, Phone, Search, Eye, Share2, DollarSign, FileText, ChevronLeft, Calendar, ShoppingCart, Navigation, Pencil, RotateCcw, CheckCircle, Route } from 'lucide-react';
+import { Users, AlertCircle, MapPin, X, Phone, Search, Eye, Share2, DollarSign, FileText, ChevronLeft, Calendar, ShoppingCart, Navigation, Pencil, RotateCcw, CheckCircle, Route, Target } from 'lucide-react';
 import { registrarVisita, buscarHistoricoVisitas, atualizarParceiro, toggleAtivoParceiro, marcarParceiroNaCampanha, buscarParticipantesCampanha, buscarRankingRecorrencia, cancelarVisita, buscarLeadsPorBairro, desfazerVisitaParceiro } from '../actions/parceiros';
 import { agendarRevisita } from '../actions';
 import Link from 'next/link';
@@ -529,6 +529,9 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
           </Link>
           <Link href="/leads" className="magnetic-button flex items-center gap-2 bg-[var(--card)] border border-amber-500 text-amber-400 px-4 py-2 rounded-full font-bold hover:bg-amber-500 hover:text-black transition-all text-sm">
             <Route className="w-4 h-4" /> Leads
+          </Link>
+          <Link href="/campanhas" className="magnetic-button flex items-center gap-2 bg-[var(--card)] border border-purple-500 text-purple-400 px-4 py-2 rounded-full font-bold hover:bg-purple-500 hover:text-black transition-all text-sm">
+            <Target className="w-4 h-4" /> Campanhas
           </Link>
         </div>
       </header>

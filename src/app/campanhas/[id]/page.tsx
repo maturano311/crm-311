@@ -38,6 +38,7 @@ export default async function CampanhaDetalhePage({ params }: { params: Promise<
         p.regiao,
         p.perfil,
         p.telefone,
+        p.tabela_preco,
         cp.abordado,
         cp.comprou,
         cp.data_abordagem,

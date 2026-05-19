@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import {
   Target, Plus, X, ChevronDown, ChevronUp,
   Calendar, Users, Power, Home,
@@ -85,8 +84,6 @@ export default function CampanhasClient({
   campanhas: Campanha[];
   redes: string[];
 }) {
-  const router = useRouter();
-  const [, startTransition] = useTransition();
   const [campanhas, setCampanhas] = useState<Campanha[]>(initial);
   const [showForm, setShowForm] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -96,14 +93,9 @@ export default function CampanhasClient({
   // Form nova campanha
   const [form, setForm] = useState({
     nome: '', data_alvo: '', descricao: '', dias_antecedencia: 7,
-    rede: '', preco: '', bonif: '',
   });
   const [saving, setSaving] = useState(false);
-  const formCalc = calcBonif(
-    parseFloat(form.preco.replace(',', '.')),
-    parseFloat(form.bonif.replace(',', '.'))
-  );
-  const formValido = !!(form.nome.trim() && form.data_alvo && form.rede && formCalc);
+  const formValido = !!(form.nome.trim() && form.data_alvo);
 
   // Form de ativação inline (por card)
   const [ativForm, setAtivForm] = useState({ rede: '', preco: '', bonif: '' });
@@ -145,14 +137,15 @@ export default function CampanhasClient({
       data_alvo: form.data_alvo,
       descricao: form.descricao,
       dias_antecedencia: form.dias_antecedencia,
-      rede: form.rede,
-      preco_base: parseFloat(form.preco.replace(',', '.')),
-      bonificacao_pct: parseFloat(form.bonif.replace(',', '.')),
     });
-    if (res.success) {
+    if (res.success && res.campanha) {
+      setCampanhas(prev => [...prev, {
+        ...res.campanha!,
+        total_abordados: 0,
+        total_compraram: 0,
+      }]);
       setShowForm(false);
-      setForm({ nome: '', data_alvo: '', descricao: '', dias_antecedencia: 7, rede: '', preco: '', bonif: '' });
-      startTransition(() => router.refresh());
+      setForm({ nome: '', data_alvo: '', descricao: '', dias_antecedencia: 7 });
     } else {
       alert('Erro ao criar campanha: ' + res.error);
     }
@@ -181,6 +174,18 @@ export default function CampanhasClient({
       alert('Erro ao ativar: ' + (res as any).error);
     }
     setLoadingId(null);
+  };
+
+  const handleDuplicar = async (c: Campanha) => {
+    const res = await criarCampanha({ nome: c.nome, data_alvo: c.data_alvo.slice(0, 10), descricao: c.descricao || undefined, dias_antecedencia: c.dias_antecedencia });
+    if (res.success && res.campanha) {
+      const nova = { ...res.campanha!, total_abordados: 0, total_compraram: 0 };
+      setCampanhas(prev => [...prev, nova]);
+      setExpandedId(null);
+      setTimeout(() => handleExpand(nova.id), 50);
+    } else {
+      alert('Erro: ' + res.error);
+    }
   };
 
   const handleEncerrar = async (c: Campanha) => {
@@ -260,16 +265,6 @@ export default function CampanhasClient({
                   onBlur={e => (e.target.style.borderColor = 'var(--border)')} />
               </div>
 
-              {/* Tabela */}
-              <div>
-                <label style={labelStyle}>Tabela de Preço *</label>
-                <select required value={form.rede} onChange={e => setForm(f => ({ ...f, rede: e.target.value }))}
-                  style={{ ...inputStyle, color: form.rede ? 'var(--foreground)' : 'var(--muted-foreground)' }}>
-                  <option value="">Selecione a tabela...</option>
-                  {redes.map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
-              </div>
-
               {/* Data + Antecedência */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                 <div>
@@ -284,30 +279,6 @@ export default function CampanhasClient({
                     {[3, 5, 7, 10, 14, 21, 30].map(d => <option key={d} value={d}>{d} dias antes</option>)}
                   </select>
                 </div>
-              </div>
-
-              {/* Calculadora */}
-              <div style={{ background: 'rgba(0,230,118,0.04)', border: '1px solid rgba(0,230,118,0.15)', borderRadius: '12px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <p style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.07em', margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <Calculator className="w-3.5 h-3.5" /> Bonificação *
-                </p>
-                <div>
-                  <label style={labelStyle}>Preço Base (R$)</label>
-                  <input type="text" inputMode="decimal" placeholder="0,00"
-                    value={form.preco} onChange={e => setForm(f => ({ ...f, preco: e.target.value }))}
-                    style={inputStyle}
-                    onFocus={e => (e.target.style.borderColor = 'var(--primary)')}
-                    onBlur={e => (e.target.style.borderColor = 'var(--border)')} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Bonificação (%)</label>
-                  <input type="text" inputMode="decimal" placeholder="Ex: 10"
-                    value={form.bonif} onChange={e => setForm(f => ({ ...f, bonif: e.target.value }))}
-                    style={inputStyle}
-                    onFocus={e => (e.target.style.borderColor = 'var(--primary)')}
-                    onBlur={e => (e.target.style.borderColor = 'var(--border)')} />
-                </div>
-                {formCalc && <TabelaQuantidades preco={parseFloat(form.preco.replace(',', '.'))} bonif={parseFloat(form.bonif.replace(',', '.'))} />}
               </div>
 
               {/* Descrição */}
@@ -507,6 +478,16 @@ export default function CampanhasClient({
                           <X className="w-3.5 h-3.5" /> Encerrar
                         </button>
                       )}
+
+                      <button onClick={() => handleDuplicar(c)} disabled={isLoading}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '0.4rem',
+                          padding: '0.45rem 0.9rem', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700,
+                          border: '1px solid #a78bfa', background: 'transparent', color: '#a78bfa',
+                          cursor: 'pointer', opacity: isLoading ? 0.5 : 1,
+                        }}>
+                        <Plus className="w-3.5 h-3.5" /> Outra tabela
+                      </button>
 
                       <span style={{ marginLeft: 'auto', fontSize: '0.68rem', color: 'var(--muted-foreground)', display: 'flex', alignItems: 'center' }}>
                         Criada em {new Date(c.criado_em).toLocaleDateString('pt-BR')}

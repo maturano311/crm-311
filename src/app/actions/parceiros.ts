@@ -171,33 +171,29 @@ export async function buscarTodasCampanhas() {
   return res.rows;
 }
 
-// Cria uma campanha manual via interface
+// Cria uma campanha manual via interface (sugestão — rede/preço definidos ao ativar)
 export async function criarCampanha(data: {
   nome: string;
   data_alvo: string;
   descricao?: string;
   dias_antecedencia?: number;
-  rede: string;
-  preco_base: number;
-  bonificacao_pct: number;
 }) {
   try {
     const res = await pool.query(`
-      INSERT INTO campanhas (nome, data_alvo, descricao, dias_antecedencia, ativa, rede, preco_base, bonificacao_pct)
-      VALUES ($1, $2, $3, $4, false, $5, $6, $7)
-      RETURNING id, nome, data_alvo
+      INSERT INTO campanhas (nome, data_alvo, descricao, dias_antecedencia, ativa)
+      VALUES ($1, $2, $3, $4, false)
+      RETURNING id, nome, data_alvo, descricao, dias_antecedencia, ativa,
+        rede, preco_base, bonificacao_pct, criado_em,
+        (data_alvo - CURRENT_DATE)::INTEGER as dias_restantes
     `, [
       data.nome.trim(),
       data.data_alvo,
       data.descricao?.trim() || null,
       data.dias_antecedencia || 7,
-      data.rede,
-      data.preco_base,
-      data.bonificacao_pct,
     ]);
     return { success: true, campanha: res.rows[0] };
   } catch (e: any) {
-    return { success: false, error: e.message };
+    return { success: false, error: e.message, campanha: null };
   }
 }
 
