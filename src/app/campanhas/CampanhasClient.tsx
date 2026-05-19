@@ -26,18 +26,6 @@ interface Campanha {
   bonificacao_pct: number | null;
 }
 
-const PRESETS_BONIF = [
-  { pct: 50,    label: '50%'    },
-  { pct: 33.33, label: '33,33%' },
-  { pct: 25,    label: '25%'    },
-  { pct: 20,    label: '20%'    },
-  { pct: 16.67, label: '16,67%' },
-  { pct: 14.29, label: '14,29%' },
-  { pct: 12.5,  label: '12,5%'  },
-  { pct: 11.11, label: '11,11%' },
-  { pct: 10,    label: '10%'    },
-];
-
 function calcBonif(preco: number, bonif: number) {
   if (!preco || !bonif || bonif <= 0 || bonif >= 100) return null;
   const N = Math.round((1 / (bonif / 100)) - 1);
@@ -46,74 +34,27 @@ function calcBonif(preco: number, bonif: number) {
     N,
     desconto: (1 / (N + 1)) * 100,
     precoUni: preco * N / (N + 1),
-    precoFardo: preco * N / (N + 1) * 4,
-    totalPotes: (N + 1) * 4,
   };
 }
 
-function TabelaBonif({ preco, bonifSelecionado, onSelect }: {
-  preco: number;
-  bonifSelecionado: number;
-  onSelect: (pct: number) => void;
-}) {
-  const temPreco = preco > 0;
-  return (
-    <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border)' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
-        <thead>
-          <tr style={{ background: 'var(--muted)' }}>
-            {['Bonif.', 'Compra', 'Leva', ...(temPreco ? ['R$/unid', 'Total'] : [])].map(h => (
-              <th key={h} style={{ padding: '0.35rem 0.6rem', fontSize: '0.6rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {PRESETS_BONIF.map(p => {
-            const r = calcBonif(temPreco ? preco : 1, p.pct);
-            if (!r) return null;
-            const sel = Math.abs(bonifSelecionado - p.pct) < 0.1;
-            return (
-              <tr key={p.pct} onClick={() => onSelect(p.pct)}
-                style={{
-                  cursor: 'pointer',
-                  background: sel ? 'rgba(0,230,118,0.12)' : 'transparent',
-                  borderTop: '1px solid var(--border)',
-                  transition: 'background 0.1s',
-                }}>
-                <td style={{ padding: '0.4rem 0.6rem', fontWeight: 700, color: sel ? 'var(--primary)' : 'var(--foreground)' }}>{p.label}</td>
-                <td style={{ padding: '0.4rem 0.6rem', color: 'var(--muted-foreground)' }}>{r.N} fardos</td>
-                <td style={{ padding: '0.4rem 0.6rem', fontWeight: 700 }}>{r.N + 1} fardos</td>
-                {temPreco && <td style={{ padding: '0.4rem 0.6rem' }}>R$ {r.precoUni.toFixed(2)}</td>}
-                {temPreco && <td style={{ padding: '0.4rem 0.6rem', fontWeight: 700, color: 'var(--primary)' }}>{r.totalPotes} potes</td>}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function CalcPreview({ preco, bonif }: { preco: number; bonif: number }) {
+function TabelaQuantidades({ preco, bonif }: { preco: number; bonif: number }) {
   const r = calcBonif(preco, bonif);
   if (!r) return null;
   return (
-    <div style={{ background: 'rgba(0,230,118,0.06)', border: '1px solid rgba(0,230,118,0.18)', borderRadius: '10px', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-      <p style={{ fontWeight: 800, fontSize: '0.88rem', color: 'var(--primary)', margin: 0 }}>
-        Compra {r.N} fardo{r.N > 1 ? 's' : ''}, leva {r.N + 1} · <span style={{ color: 'var(--foreground)' }}>{r.totalPotes} potes</span>
-      </p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.35rem' }}>
-        {[
-          { label: 'Preço / unid.', value: `R$ ${r.precoUni.toFixed(2)}` },
-          { label: 'Preço / fardo', value: `R$ ${r.precoFardo.toFixed(2)}` },
-          { label: 'Desconto real', value: `${r.desconto.toFixed(1)}%` },
-        ].map(m => (
-          <div key={m.label} style={{ background: 'var(--muted)', borderRadius: '8px', padding: '0.4rem 0.5rem', textAlign: 'center' }}>
-            <div style={{ fontSize: '0.58rem', color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.1rem' }}>{m.label}</div>
-            <div style={{ fontWeight: 700, fontSize: '0.82rem' }}>{m.value}</div>
-          </div>
+    <div style={{ borderRadius: '8px', border: '1px solid var(--border)', overflow: 'hidden' }}>
+      <div style={{ background: 'var(--muted)', padding: '0.3rem 0.6rem', display: 'flex', gap: '1rem' }}>
+        {['Paga', 'Leva', 'Potes', 'Valor pago'].map(h => (
+          <span key={h} style={{ flex: 1, fontSize: '0.6rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</span>
         ))}
       </div>
+      {Array.from({ length: 7 }, (_, i) => i + 1).map(mult => (
+        <div key={mult} style={{ display: 'flex', gap: '1rem', padding: '0.4rem 0.6rem', borderTop: '1px solid var(--border)', background: mult === 1 ? 'rgba(0,230,118,0.05)' : 'transparent' }}>
+          <span style={{ flex: 1, fontSize: '0.8rem', color: 'var(--muted-foreground)' }}>{r.N * mult} fardos</span>
+          <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 700, color: 'var(--primary)' }}>{(r.N + 1) * mult} fardos</span>
+          <span style={{ flex: 1, fontSize: '0.8rem', color: 'var(--muted-foreground)' }}>{(r.N + 1) * mult * 4} potes</span>
+          <span style={{ flex: 1, fontSize: '0.8rem' }}>R$ {(r.precoUni * r.N * mult * 4).toFixed(2)}</span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -356,12 +297,15 @@ export default function CampanhasClient({
                     onFocus={e => (e.target.style.borderColor = 'var(--primary)')}
                     onBlur={e => (e.target.style.borderColor = 'var(--border)')} />
                 </div>
-                <TabelaBonif
-                  preco={parseFloat(form.preco.replace(',', '.')) || 0}
-                  bonifSelecionado={parseFloat(form.bonif.replace(',', '.')) || 0}
-                  onSelect={pct => setForm(f => ({ ...f, bonif: String(pct) }))}
-                />
-                {formCalc && <CalcPreview preco={parseFloat(form.preco.replace(',', '.'))} bonif={parseFloat(form.bonif.replace(',', '.'))} />}
+                <div>
+                  <label style={labelStyle}>Bonificação (%)</label>
+                  <input type="text" inputMode="decimal" placeholder="Ex: 10"
+                    value={form.bonif} onChange={e => setForm(f => ({ ...f, bonif: e.target.value }))}
+                    style={inputStyle}
+                    onFocus={e => (e.target.style.borderColor = 'var(--primary)')}
+                    onBlur={e => (e.target.style.borderColor = 'var(--border)')} />
+                </div>
+                {formCalc && <TabelaQuantidades preco={parseFloat(form.preco.replace(',', '.'))} bonif={parseFloat(form.bonif.replace(',', '.'))} />}
               </div>
 
               {/* Descrição */}
@@ -503,21 +447,15 @@ export default function CampanhasClient({
                           onFocus={e => (e.target.style.borderColor = 'var(--primary)')}
                           onBlur={e => (e.target.style.borderColor = 'var(--border)')} />
                       </div>
-                      {!c.ativa && (
-                        <div style={{ marginBottom: ativCalc ? '0.6rem' : 0 }}>
-                          <TabelaBonif
-                            preco={parseFloat(ativForm.preco.replace(',', '.')) || 0}
-                            bonifSelecionado={parseFloat(ativForm.bonif.replace(',', '.')) || 0}
-                            onSelect={pct => setAtivForm(f => ({ ...f, bonif: String(pct) }))}
-                          />
-                        </div>
-                      )}
-                      {ativCalc && (
-                        <CalcPreview
-                          preco={parseFloat(ativForm.preco.replace(',', '.'))}
-                          bonif={parseFloat(ativForm.bonif.replace(',', '.'))}
-                        />
-                      )}
+                      <div style={{ marginBottom: '0.6rem' }}>
+                        <label style={labelStyle}>Bonificação (%)</label>
+                        <input type="text" inputMode="decimal" placeholder="Ex: 10"
+                          value={ativForm.bonif} onChange={e => setAtivForm(f => ({ ...f, bonif: e.target.value }))}
+                          disabled={c.ativa} style={{ ...inputStyle, opacity: c.ativa ? 0.6 : 1 }}
+                          onFocus={e => (e.target.style.borderColor = 'var(--primary)')}
+                          onBlur={e => (e.target.style.borderColor = 'var(--border)')} />
+                      </div>
+                      {ativCalc && <TabelaQuantidades preco={parseFloat(ativForm.preco.replace(',', '.'))} bonif={parseFloat(ativForm.bonif.replace(',', '.'))} />}
                     </div>
 
                     {/* Ações */}
