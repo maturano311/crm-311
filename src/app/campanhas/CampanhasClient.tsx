@@ -177,6 +177,8 @@ export default function CampanhasClient({
         x.id === c.id ? { ...x, ativa: true, rede: ativForm.rede, preco_base: preco, bonificacao_pct: bonif } : x
       ));
       setExpandedId(null);
+    } else {
+      alert('Erro ao ativar: ' + (res as any).error);
     }
     setLoadingId(null);
   };
@@ -424,16 +426,14 @@ export default function CampanhasClient({
                     {/* Calculadora de ativação — sempre visível quando expandido */}
                     <div style={{ background: 'rgba(0,230,118,0.04)', border: '1px solid rgba(0,230,118,0.15)', borderRadius: '12px', padding: '1rem' }}>
                       <p style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <Calculator className="w-3 h-3" />
-                        {c.ativa ? 'Precificação ativa' : 'Configurar para ativar'}
+                        <Calculator className="w-3 h-3" /> Bonificação
                       </p>
 
                       {/* Tabela */}
                       <div style={{ marginBottom: '0.6rem' }}>
                         <label style={labelStyle}>Tabela de Preço</label>
                         <select value={ativForm.rede} onChange={e => setAtivForm(f => ({ ...f, rede: e.target.value }))}
-                          disabled={c.ativa}
-                          style={{ ...inputStyle, opacity: c.ativa ? 0.6 : 1, color: ativForm.rede ? 'var(--foreground)' : 'var(--muted-foreground)' }}>
+                          style={{ ...inputStyle, color: ativForm.rede ? 'var(--foreground)' : 'var(--muted-foreground)' }}>
                           <option value="">Selecione...</option>
                           {redes.map(r => <option key={r} value={r}>{r}</option>)}
                         </select>
@@ -443,7 +443,7 @@ export default function CampanhasClient({
                         <label style={labelStyle}>Preço Base (R$)</label>
                         <input type="text" inputMode="decimal" placeholder="0,00"
                           value={ativForm.preco} onChange={e => setAtivForm(f => ({ ...f, preco: e.target.value }))}
-                          disabled={c.ativa} style={{ ...inputStyle, opacity: c.ativa ? 0.6 : 1 }}
+                          style={inputStyle}
                           onFocus={e => (e.target.style.borderColor = 'var(--primary)')}
                           onBlur={e => (e.target.style.borderColor = 'var(--border)')} />
                       </div>
@@ -451,7 +451,7 @@ export default function CampanhasClient({
                         <label style={labelStyle}>Bonificação (%)</label>
                         <input type="text" inputMode="decimal" placeholder="Ex: 10"
                           value={ativForm.bonif} onChange={e => setAtivForm(f => ({ ...f, bonif: e.target.value }))}
-                          disabled={c.ativa} style={{ ...inputStyle, opacity: c.ativa ? 0.6 : 1 }}
+                          style={inputStyle}
                           onFocus={e => (e.target.style.borderColor = 'var(--primary)')}
                           onBlur={e => (e.target.style.borderColor = 'var(--border)')} />
                       </div>
@@ -472,7 +472,19 @@ export default function CampanhasClient({
                         </Link>
                       )}
 
-                      {c.ativa ? (
+                      <button onClick={() => handleAtivar(c)} disabled={isLoading || !ativValido}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '0.4rem',
+                          padding: '0.45rem 0.9rem', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700,
+                          border: '1px solid var(--primary)', background: ativValido ? 'var(--primary)' : 'transparent',
+                          color: ativValido ? '#000' : 'var(--muted-foreground)',
+                          cursor: ativValido ? 'pointer' : 'not-allowed',
+                          opacity: isLoading ? 0.5 : 1,
+                        }}>
+                        <Power className="w-3.5 h-3.5" /> {c.ativa ? 'Atualizar' : 'Ativar Campanha'}
+                      </button>
+
+                      {c.ativa && (
                         <button onClick={() => handlePausar(c)} disabled={isLoading}
                           style={{
                             display: 'flex', alignItems: 'center', gap: '0.4rem',
@@ -481,18 +493,6 @@ export default function CampanhasClient({
                             cursor: 'pointer', opacity: isLoading ? 0.5 : 1,
                           }}>
                           <Power className="w-3.5 h-3.5" /> Pausar
-                        </button>
-                      ) : (
-                        <button onClick={() => handleAtivar(c)} disabled={isLoading || !ativValido}
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: '0.4rem',
-                            padding: '0.45rem 0.9rem', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700,
-                            border: '1px solid var(--primary)', background: ativValido ? 'var(--primary)' : 'transparent',
-                            color: ativValido ? '#000' : 'var(--muted-foreground)',
-                            cursor: ativValido ? 'pointer' : 'not-allowed',
-                            opacity: isLoading ? 0.5 : 1,
-                          }}>
-                          <Power className="w-3.5 h-3.5" /> Ativar Campanha
                         </button>
                       )}
 
