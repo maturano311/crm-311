@@ -261,12 +261,12 @@ export default function CampanhasClient({
                   onBlur={e => (e.target.style.borderColor = 'var(--border)')} />
               </div>
 
-              {/* Rede */}
+              {/* Tabela */}
               <div>
-                <label style={labelStyle}>Rede *</label>
+                <label style={labelStyle}>Tabela de Preço *</label>
                 <select required value={form.rede} onChange={e => setForm(f => ({ ...f, rede: e.target.value }))}
                   style={{ ...inputStyle, color: form.rede ? 'var(--foreground)' : 'var(--muted-foreground)' }}>
-                  <option value="">Selecione a rede...</option>
+                  <option value="">Selecione a tabela...</option>
                   {redes.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
               </div>
@@ -388,7 +388,7 @@ export default function CampanhasClient({
                     <div style={{ fontSize: '0.72rem', color: 'var(--muted-foreground)', marginTop: '0.15rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
                       <Calendar className="w-3 h-3" />
                       {new Date(c.data_alvo).toLocaleDateString('pt-BR', { timeZone: 'UTC', day: '2-digit', month: 'short', year: 'numeric' })}
-                      {c.rede && <span style={{ color: '#a78bfa' }}>· {c.rede}</span>}
+                      {c.rede && <span style={{ color: '#a78bfa' }}>· {c.rede.replace('TABELA ', '')}</span>}
                       {c.preco_base && <span style={{ color: 'var(--primary)', fontWeight: 700 }}>R$ {Number(c.preco_base).toFixed(2)}</span>}
                       <span style={{ color: st.color, background: st.bg, padding: '0.1rem 0.5rem', borderRadius: '999px', fontWeight: 700 }}>
                         {st.label}
@@ -433,9 +433,9 @@ export default function CampanhasClient({
                         {c.ativa ? 'Precificação ativa' : 'Configurar para ativar'}
                       </p>
 
-                      {/* Rede */}
+                      {/* Tabela */}
                       <div style={{ marginBottom: '0.6rem' }}>
-                        <label style={labelStyle}>Rede</label>
+                        <label style={labelStyle}>Tabela de Preço</label>
                         <select value={ativForm.rede} onChange={e => setAtivForm(f => ({ ...f, rede: e.target.value }))}
                           disabled={c.ativa}
                           style={{ ...inputStyle, opacity: c.ativa ? 0.6 : 1, color: ativForm.rede ? 'var(--foreground)' : 'var(--muted-foreground)' }}>

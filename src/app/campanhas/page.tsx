@@ -19,8 +19,10 @@ export default async function CampanhasPage() {
     `);
     campanhas = res.rows;
 
-    const redesRes = await pool.query('SELECT nome FROM redes ORDER BY nome');
-    redes = redesRes.rows.map((r: any) => r.nome);
+    const tabelasRes = await pool.query(
+      `SELECT DISTINCT tabela_preco FROM parceiros WHERE tabela_preco IS NOT NULL AND ativo = true ORDER BY tabela_preco`
+    );
+    redes = tabelasRes.rows.map((r: any) => r.tabela_preco);
   } catch (error) {
     console.error('Erro ao buscar campanhas:', error);
   }
