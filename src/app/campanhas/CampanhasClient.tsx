@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import {
   Target, Plus, X, ChevronDown, ChevronUp,
   Calendar, Users, TrendingUp, Power, Home,
-  UserCheck, Route, Search, Megaphone, ArrowRight
+  UserCheck, Route, Search, Megaphone, ArrowRight, Calculator
 } from 'lucide-react';
 import { criarCampanha, toggleCampanhaAtiva, encerrarCampanha } from '../actions/parceiros';
 
@@ -48,6 +48,22 @@ export default function CampanhasClient({ campanhas: initial }: { campanhas: Cam
     dias_antecedencia: 7,
   });
   const [saving, setSaving] = useState(false);
+
+  // Calculadora de bonificação
+  const [calcPreco, setCalcPreco] = useState('');
+  const [calcBonif, setCalcBonif] = useState('');
+
+  const calcResult = (() => {
+    const preco = parseFloat(calcPreco.replace(',', '.'));
+    const bonif = parseFloat(calcBonif.replace(',', '.'));
+    if (!preco || !bonif || bonif <= 0 || bonif >= 100) return null;
+    const N = Math.round((1 / (bonif / 100)) - 1);
+    if (N <= 0) return null;
+    const descontoReal = (1 / (N + 1)) * 100;
+    const precoUni = preco * N / (N + 1);
+    const precoFardo = precoUni * 4;
+    return { N, descontoReal, precoUni, precoFardo };
+  })();
 
   const campanhasFiltradas = campanhas.filter(c => {
     if (filtro === 'ativas') return c.ativa;
@@ -217,6 +233,67 @@ export default function CampanhasClient({ campanhas: initial }: { campanhas: Cam
             </form>
           </div>
         )}
+
+        {/* Calculadora de Bonificação */}
+        <div className="glass-panel stagger-item" style={{ borderRadius: '16px', padding: '1.25rem 1.5rem', border: '1px solid rgba(0,230,118,0.15)' }}>
+          <h3 style={{ fontWeight: 800, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+            <Calculator className="w-4 h-4" style={{ color: 'var(--primary)' }} />
+            Calculadora de Bonificação
+          </h3>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: calcResult ? '1rem' : 0 }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.35rem' }}>
+                Preço Base (R$)
+              </label>
+              <input
+                type="text"
+                inputMode="decimal"
+                placeholder="0,00"
+                value={calcPreco}
+                onChange={e => setCalcPreco(e.target.value)}
+                style={{ width: '100%', background: 'var(--background)', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.55rem 0.8rem', fontSize: '0.9rem', color: 'var(--foreground)', outline: 'none', boxSizing: 'border-box' }}
+                onFocus={e => (e.target.style.borderColor = 'var(--primary)')}
+                onBlur={e => (e.target.style.borderColor = 'var(--border)')}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.35rem' }}>
+                Bonificação (%)
+              </label>
+              <input
+                type="text"
+                inputMode="decimal"
+                placeholder="Ex: 25"
+                value={calcBonif}
+                onChange={e => setCalcBonif(e.target.value)}
+                style={{ width: '100%', background: 'var(--background)', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.55rem 0.8rem', fontSize: '0.9rem', color: 'var(--foreground)', outline: 'none', boxSizing: 'border-box' }}
+                onFocus={e => (e.target.style.borderColor = 'var(--primary)')}
+                onBlur={e => (e.target.style.borderColor = 'var(--border)')}
+              />
+            </div>
+          </div>
+
+          {calcResult && (
+            <div style={{ background: 'rgba(0,230,118,0.06)', border: '1px solid rgba(0,230,118,0.2)', borderRadius: '12px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+              <p style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--primary)', margin: 0 }}>
+                Compra {calcResult.N} fardo{calcResult.N > 1 ? 's' : ''}, leva {calcResult.N + 1}
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
+                {[
+                  { label: 'Preço / unid.', value: `R$ ${calcResult.precoUni.toFixed(2)}` },
+                  { label: 'Preço / fardo', value: `R$ ${calcResult.precoFardo.toFixed(2)}` },
+                  { label: 'Desconto real', value: `${calcResult.descontoReal.toFixed(1)}%` },
+                ].map(m => (
+                  <div key={m.label} style={{ background: 'var(--muted)', borderRadius: '10px', padding: '0.55rem 0.65rem', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.62rem', color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.2rem' }}>{m.label}</div>
+                    <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--foreground)' }}>{m.value}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Filtros */}
         <div style={{ display: 'flex', gap: '0.5rem' }}>
