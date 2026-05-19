@@ -18,6 +18,7 @@ interface Parceiro {
   regiao: string | null;
   perfil: string | null;
   telefone: string | null;
+  tabela_preco: string | null;
   abordado: boolean | null;
   comprou: boolean | null;
   data_abordagem: string | null;
@@ -57,6 +58,7 @@ export default function CampanhaDetalheClient({
   const [busca, setBusca] = useState('');
   const [filtroRegiao, setFiltroRegiao] = useState('');
   const [filtroPerfil, setFiltroPerfil] = useState('varejo');
+  const [filtroTabela, setFiltroTabela] = useState('');
   const [aba, setAba] = useState<'na_campanha' | 'adicionar'>('na_campanha');
   const [loadingId, setLoadingId] = useState<number | null>(null);
 
@@ -91,14 +93,20 @@ export default function CampanhaDetalheClient({
     [...new Set(parceiros.map(p => p.perfil).filter(Boolean) as string[])].sort()
   , [parceiros]);
 
+  // Tabelas de preço únicas (proxy de rede)
+  const tabelas = useMemo(() =>
+    [...new Set(parceiros.map(p => p.tabela_preco).filter(Boolean) as string[])].sort()
+  , [parceiros]);
+
   const buscarEm = (lista: Parceiro[]) => {
     let result = lista;
     if (filtroRegiao) result = result.filter(p => p.regiao === filtroRegiao);
     if (filtroPerfil) result = result.filter(p => p.perfil === filtroPerfil);
+    if (filtroTabela) result = result.filter(p => p.tabela_preco === filtroTabela);
     const q = busca.toLowerCase();
     if (!q) return result;
     return result.filter(p =>
-      [p.nome_fantasia, p.cidade, p.bairro, p.regiao, p.perfil]
+      [p.nome_fantasia, p.cidade, p.bairro, p.regiao, p.perfil, p.tabela_preco]
         .some(v => v && v.toLowerCase().includes(q))
     );
   };
@@ -336,6 +344,24 @@ export default function CampanhaDetalheClient({
                 <option value="">Todos os Tipos</option>
                 {perfis.map(p => (
                   <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            )}
+
+            {tabelas.length > 0 && (
+              <select
+                value={filtroTabela}
+                onChange={e => setFiltroTabela(e.target.value)}
+                style={{
+                  background: 'var(--background)', border: `1px solid ${filtroTabela ? '#a78bfa' : 'var(--border)'}`,
+                  borderRadius: '999px', padding: '0.55rem 1rem',
+                  fontSize: '0.82rem', color: filtroTabela ? '#a78bfa' : 'var(--muted-foreground)',
+                  outline: 'none', cursor: 'pointer', fontWeight: filtroTabela ? 700 : 400,
+                }}
+              >
+                <option value="">Todas as Redes</option>
+                {tabelas.map(t => (
+                  <option key={t} value={t}>{t}</option>
                 ))}
               </select>
             )}
