@@ -38,7 +38,7 @@ export default function CampanhasClient({ campanhas: initial }: { campanhas: Cam
   const [showForm, setShowForm] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [loadingId, setLoadingId] = useState<number | null>(null);
-  const [filtro, setFiltro] = useState<'todas' | 'ativas' | 'encerradas'>('ativas');
+  const [filtro, setFiltro] = useState<'todas' | 'ativas' | 'encerradas'>('todas');
 
   // Form de nova campanha
   const [form, setForm] = useState({

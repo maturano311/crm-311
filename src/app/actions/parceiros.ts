@@ -181,7 +181,7 @@ export async function criarCampanha(data: {
   try {
     const res = await pool.query(`
       INSERT INTO campanhas (nome, data_alvo, descricao, dias_antecedencia, ativa)
-      VALUES ($1, $2, $3, $4, true)
+      VALUES ($1, $2, $3, $4, false)
       RETURNING id, nome, data_alvo
     `, [
       data.nome.trim(),
