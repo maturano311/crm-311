@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import {
   ArrowLeft, Target, Calendar, Users, TrendingUp,
   Search, CheckCircle, XCircle, Plus, Minus,
-  MapPin, Phone, ShoppingCart, Megaphone, Calculator
+  MapPin, Phone, ShoppingCart, Megaphone
 } from 'lucide-react';
 import { adicionarParceiroCampanha, removerParceiroDaCampanha, marcarParceiroNaCampanha } from '../../actions/parceiros';
 
@@ -61,21 +61,6 @@ export default function CampanhaDetalheClient({
   const [filtroTabela, setFiltroTabela] = useState('');
   const [aba, setAba] = useState<'na_campanha' | 'adicionar'>('na_campanha');
   const [loadingId, setLoadingId] = useState<number | null>(null);
-
-  // Calculadora de bonificação
-  const [calcPreco, setCalcPreco] = useState('');
-  const [calcBonif, setCalcBonif] = useState('');
-  const calcResult = (() => {
-    const preco = parseFloat(calcPreco.replace(',', '.'));
-    const bonif = parseFloat(calcBonif.replace(',', '.'));
-    if (!preco || !bonif || bonif <= 0 || bonif >= 100) return null;
-    const N = Math.round((1 / (bonif / 100)) - 1);
-    if (N <= 0) return null;
-    const descontoReal = (1 / (N + 1)) * 100;
-    const precoUni = preco * N / (N + 1);
-    const precoFardo = precoUni * 4;
-    return { N, descontoReal, precoUni, precoFardo };
-  })();
 
   const st = statusCor(campanha.dias_restantes, campanha.ativa);
 
@@ -206,67 +191,6 @@ export default function CampanhaDetalheClient({
               </div>
             ))}
           </div>
-        </div>
-
-        {/* Calculadora de Bonificação */}
-        <div className="glass-panel stagger-item" style={{ borderRadius: '14px', padding: '1.1rem 1.25rem', border: '1px solid rgba(0,230,118,0.15)' }}>
-          <h3 style={{ fontWeight: 800, fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.85rem', color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            <Calculator className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} />
-            Calculadora de Bonificação
-          </h3>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: calcResult ? '0.85rem' : 0 }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.3rem' }}>
-                Preço Base (R$)
-              </label>
-              <input
-                type="text"
-                inputMode="decimal"
-                placeholder="0,00"
-                value={calcPreco}
-                onChange={e => setCalcPreco(e.target.value)}
-                style={{ width: '100%', background: 'var(--background)', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.5rem 0.75rem', fontSize: '0.88rem', color: 'var(--foreground)', outline: 'none', boxSizing: 'border-box' }}
-                onFocus={e => (e.target.style.borderColor = 'var(--primary)')}
-                onBlur={e => (e.target.style.borderColor = 'var(--border)')}
-              />
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.3rem' }}>
-                Bonificação (%)
-              </label>
-              <input
-                type="text"
-                inputMode="decimal"
-                placeholder="Ex: 25"
-                value={calcBonif}
-                onChange={e => setCalcBonif(e.target.value)}
-                style={{ width: '100%', background: 'var(--background)', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.5rem 0.75rem', fontSize: '0.88rem', color: 'var(--foreground)', outline: 'none', boxSizing: 'border-box' }}
-                onFocus={e => (e.target.style.borderColor = 'var(--primary)')}
-                onBlur={e => (e.target.style.borderColor = 'var(--border)')}
-              />
-            </div>
-          </div>
-
-          {calcResult && (
-            <div style={{ background: 'rgba(0,230,118,0.06)', border: '1px solid rgba(0,230,118,0.18)', borderRadius: '10px', padding: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
-              <p style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--primary)', margin: 0 }}>
-                Compra {calcResult.N} fardo{calcResult.N > 1 ? 's' : ''}, leva {calcResult.N + 1}
-              </p>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.45rem' }}>
-                {[
-                  { label: 'Preço / unid.', value: `R$ ${calcResult.precoUni.toFixed(2)}` },
-                  { label: 'Preço / fardo', value: `R$ ${calcResult.precoFardo.toFixed(2)}` },
-                  { label: 'Desconto real', value: `${calcResult.descontoReal.toFixed(1)}%` },
-                ].map(m => (
-                  <div key={m.label} style={{ background: 'var(--muted)', borderRadius: '8px', padding: '0.5rem 0.5rem', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.6rem', color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.15rem' }}>{m.label}</div>
-                    <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--foreground)' }}>{m.value}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Abas + Busca */}

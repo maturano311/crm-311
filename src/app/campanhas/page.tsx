@@ -5,10 +5,11 @@ export const dynamic = 'force-dynamic';
 
 export default async function CampanhasPage() {
   let campanhas: any[] = [];
+  let redes: string[] = [];
 
   try {
     const res = await pool.query(`
-      SELECT 
+      SELECT
         c.*,
         (c.data_alvo - CURRENT_DATE) as dias_restantes,
         (SELECT COUNT(*) FROM campanha_parceiros cp WHERE cp.campanha_id = c.id AND cp.abordado = true)::INTEGER as total_abordados,
@@ -17,13 +18,16 @@ export default async function CampanhasPage() {
       ORDER BY c.ativa DESC, c.data_alvo ASC
     `);
     campanhas = res.rows;
+
+    const redesRes = await pool.query('SELECT nome FROM redes ORDER BY nome');
+    redes = redesRes.rows.map((r: any) => r.nome);
   } catch (error) {
     console.error('Erro ao buscar campanhas:', error);
   }
 
   return (
     <main>
-      <CampanhasClient campanhas={campanhas} />
+      <CampanhasClient campanhas={campanhas} redes={redes} />
     </main>
   );
 }

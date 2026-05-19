@@ -5,10 +5,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   Target, Plus, X, ChevronDown, ChevronUp,
-  Calendar, Users, TrendingUp, Power, Home,
-  UserCheck, Route, Search, Megaphone, ArrowRight
+  Calendar, Users, Power, Home,
+  UserCheck, Megaphone, ArrowRight, Calculator
 } from 'lucide-react';
-import { criarCampanha, toggleCampanhaAtiva, encerrarCampanha } from '../actions/parceiros';
+import { criarCampanha, toggleCampanhaAtiva, encerrarCampanha, ativarCampanhaComPreco } from '../actions/parceiros';
 
 interface Campanha {
   id: number;
@@ -21,48 +21,140 @@ interface Campanha {
   dias_restantes: number;
   total_abordados: number;
   total_compraram: number;
+  rede: string | null;
+  preco_base: number | null;
+  bonificacao_pct: number | null;
+}
+
+function calcBonif(preco: number, bonif: number) {
+  if (!preco || !bonif || bonif <= 0 || bonif >= 100) return null;
+  const N = Math.round((1 / (bonif / 100)) - 1);
+  if (N <= 0) return null;
+  return {
+    N,
+    desconto: (1 / (N + 1)) * 100,
+    precoUni: preco * N / (N + 1),
+    precoFardo: preco * N / (N + 1) * 4,
+  };
 }
 
 function statusLabel(c: Campanha) {
-  if (!c.ativa) return { label: 'Encerrada', color: '#6b7280', bg: 'rgba(107,114,128,0.12)' };
+  if (!c.ativa) return { label: 'Sugestão', color: '#6b7280', bg: 'rgba(107,114,128,0.12)' };
   if (c.dias_restantes < 0) return { label: 'Vencida', color: '#ef4444', bg: 'rgba(239,68,68,0.12)' };
   if (c.dias_restantes === 0) return { label: 'Hoje!', color: '#f97316', bg: 'rgba(249,115,22,0.15)' };
   if (c.dias_restantes <= 7) return { label: `${c.dias_restantes}d restantes`, color: '#facc15', bg: 'rgba(250,204,21,0.12)' };
   return { label: `${c.dias_restantes}d restantes`, color: '#00e676', bg: 'rgba(0,230,118,0.10)' };
 }
 
-export default function CampanhasClient({ campanhas: initial }: { campanhas: Campanha[] }) {
+const inputStyle: React.CSSProperties = {
+  width: '100%', background: 'var(--background)', border: '1px solid var(--border)',
+  borderRadius: '8px', padding: '0.6rem 0.85rem', fontSize: '0.88rem',
+  color: 'var(--foreground)', outline: 'none', boxSizing: 'border-box',
+};
+const labelStyle: React.CSSProperties = {
+  display: 'block', fontSize: '0.68rem', fontWeight: 700,
+  color: 'var(--muted-foreground)', textTransform: 'uppercase',
+  letterSpacing: '0.07em', marginBottom: '0.35rem',
+};
+
+function CalcPreview({ preco, bonif }: { preco: number; bonif: number }) {
+  const r = calcBonif(preco, bonif);
+  if (!r) return null;
+  return (
+    <div style={{ background: 'rgba(0,230,118,0.06)', border: '1px solid rgba(0,230,118,0.18)', borderRadius: '10px', padding: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+      <p style={{ fontWeight: 800, fontSize: '0.88rem', color: 'var(--primary)', margin: 0 }}>
+        Compra {r.N} fardo{r.N > 1 ? 's' : ''}, leva {r.N + 1}
+      </p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.4rem' }}>
+        {[
+          { label: 'Preço / unid.', value: `R$ ${r.precoUni.toFixed(2)}` },
+          { label: 'Preço / fardo', value: `R$ ${r.precoFardo.toFixed(2)}` },
+          { label: 'Desconto real', value: `${r.desconto.toFixed(1)}%` },
+        ].map(m => (
+          <div key={m.label} style={{ background: 'var(--muted)', borderRadius: '8px', padding: '0.45rem 0.5rem', textAlign: 'center' }}>
+            <div style={{ fontSize: '0.58rem', color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.15rem' }}>{m.label}</div>
+            <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>{m.value}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default function CampanhasClient({
+  campanhas: initial,
+  redes,
+}: {
+  campanhas: Campanha[];
+  redes: string[];
+}) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   const [campanhas, setCampanhas] = useState<Campanha[]>(initial);
   const [showForm, setShowForm] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [loadingId, setLoadingId] = useState<number | null>(null);
-  const [filtro, setFiltro] = useState<'todas' | 'ativas' | 'encerradas'>('todas');
+  const [filtro, setFiltro] = useState<'todas' | 'ativas' | 'sugestoes'>('todas');
 
-  // Form de nova campanha
+  // Form nova campanha
   const [form, setForm] = useState({
-    nome: '',
-    data_alvo: '',
-    descricao: '',
-    dias_antecedencia: 7,
+    nome: '', data_alvo: '', descricao: '', dias_antecedencia: 7,
+    rede: '', preco: '', bonif: '',
   });
   const [saving, setSaving] = useState(false);
+  const formCalc = calcBonif(
+    parseFloat(form.preco.replace(',', '.')),
+    parseFloat(form.bonif.replace(',', '.'))
+  );
+  const formValido = !!(form.nome.trim() && form.data_alvo && form.rede && formCalc);
+
+  // Form de ativação inline (por card)
+  const [ativForm, setAtivForm] = useState({ rede: '', preco: '', bonif: '' });
+  const ativCalc = calcBonif(
+    parseFloat(ativForm.preco.replace(',', '.')),
+    parseFloat(ativForm.bonif.replace(',', '.'))
+  );
+  const ativValido = !!(ativForm.rede && ativCalc);
+
+  const handleExpand = (id: number | null) => {
+    setExpandedId(prev => {
+      const next = prev === id ? null : id;
+      if (next) {
+        const c = campanhas.find(x => x.id === next);
+        if (c) {
+          setAtivForm({
+            rede: c.rede || '',
+            preco: c.preco_base ? String(c.preco_base) : '',
+            bonif: c.bonificacao_pct ? String(c.bonificacao_pct) : '',
+          });
+        }
+      }
+      return next;
+    });
+  };
 
   const campanhasFiltradas = campanhas.filter(c => {
     if (filtro === 'ativas') return c.ativa;
-    if (filtro === 'encerradas') return !c.ativa;
+    if (filtro === 'sugestoes') return !c.ativa;
     return true;
   });
 
   const handleCriar = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.nome.trim() || !form.data_alvo) return;
+    if (!formValido) return;
     setSaving(true);
-    const res = await criarCampanha(form);
+    const res = await criarCampanha({
+      nome: form.nome,
+      data_alvo: form.data_alvo,
+      descricao: form.descricao,
+      dias_antecedencia: form.dias_antecedencia,
+      rede: form.rede,
+      preco_base: parseFloat(form.preco.replace(',', '.')),
+      bonificacao_pct: parseFloat(form.bonif.replace(',', '.')),
+    });
     if (res.success) {
       setShowForm(false);
-      setForm({ nome: '', data_alvo: '', descricao: '', dias_antecedencia: 7 });
+      setForm({ nome: '', data_alvo: '', descricao: '', dias_antecedencia: 7, rede: '', preco: '', bonif: '' });
       startTransition(() => router.refresh());
     } else {
       alert('Erro ao criar campanha: ' + res.error);
@@ -70,17 +162,30 @@ export default function CampanhasClient({ campanhas: initial }: { campanhas: Cam
     setSaving(false);
   };
 
-  const handleToggle = async (c: Campanha) => {
+  const handlePausar = async (c: Campanha) => {
     setLoadingId(c.id);
-    const res = await toggleCampanhaAtiva(c.id, !c.ativa);
+    const res = await toggleCampanhaAtiva(c.id, false);
+    if (res.success) setCampanhas(prev => prev.map(x => x.id === c.id ? { ...x, ativa: false } : x));
+    setLoadingId(null);
+  };
+
+  const handleAtivar = async (c: Campanha) => {
+    if (!ativValido) return;
+    setLoadingId(c.id);
+    const preco = parseFloat(ativForm.preco.replace(',', '.'));
+    const bonif = parseFloat(ativForm.bonif.replace(',', '.'));
+    const res = await ativarCampanhaComPreco(c.id, ativForm.rede, preco, bonif);
     if (res.success) {
-      setCampanhas(prev => prev.map(x => x.id === c.id ? { ...x, ativa: !c.ativa } : x));
+      setCampanhas(prev => prev.map(x =>
+        x.id === c.id ? { ...x, ativa: true, rede: ativForm.rede, preco_base: preco, bonificacao_pct: bonif } : x
+      ));
+      setExpandedId(null);
     }
     setLoadingId(null);
   };
 
   const handleEncerrar = async (c: Campanha) => {
-    if (!confirm(`Encerrar a campanha "${c.nome}"? Ela ficará arquivada e não aparecerá no painel.`)) return;
+    if (!confirm(`Encerrar a campanha "${c.nome}"?`)) return;
     setLoadingId(c.id);
     await encerrarCampanha(c.id);
     setCampanhas(prev => prev.map(x => x.id === c.id ? { ...x, ativa: false } : x));
@@ -93,7 +198,6 @@ export default function CampanhasClient({ campanhas: initial }: { campanhas: Cam
   return (
     <div style={{ minHeight: '100vh', background: 'var(--background)', color: 'var(--foreground)', fontFamily: 'var(--font-geist-sans), Arial, sans-serif', paddingBottom: '5rem' }}>
 
-      {/* Header */}
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-4 md:p-6 border-b border-[var(--border)] bg-[rgba(9,12,11,0.85)] backdrop-blur-xl sticky top-0 z-50">
         <div>
           <h1 className="text-2xl md:text-3xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-[var(--primary)] to-cyan-400">
@@ -123,15 +227,14 @@ export default function CampanhasClient({ campanhas: initial }: { campanhas: Cam
           <div>
             <h2 style={{ fontSize: '1.3rem', fontWeight: 800, margin: 0 }}>Suas Campanhas</h2>
             <p style={{ fontSize: '0.78rem', color: 'var(--muted-foreground)', marginTop: '0.2rem' }}>
-              {campanhas.filter(c => c.ativa).length} ativas · {campanhas.filter(c => !c.ativa).length} encerradas
+              {campanhas.filter(c => c.ativa).length} ativas · {campanhas.filter(c => !c.ativa).length} sugestões
             </p>
           </div>
           <button
             onClick={() => setShowForm(v => !v)}
             className="magnetic-button flex items-center gap-2 bg-[var(--primary)] text-black px-5 py-2.5 rounded-full font-bold text-sm hover:opacity-90 transition-all"
           >
-            <Plus className="w-4 h-4" />
-            Nova Campanha
+            <Plus className="w-4 h-4" /> Nova Campanha
           </button>
         </div>
 
@@ -140,8 +243,7 @@ export default function CampanhasClient({ campanhas: initial }: { campanhas: Cam
           <div className="glass-panel stagger-item" style={{ borderRadius: '16px', padding: '1.5rem', border: '1px solid rgba(0,230,118,0.25)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
               <h3 style={{ fontWeight: 800, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Target className="w-4 h-4" style={{ color: 'var(--primary)' }} />
-                Nova Campanha Manual
+                <Target className="w-4 h-4" style={{ color: 'var(--primary)' }} /> Nova Campanha
               </h3>
               <button onClick={() => setShowForm(false)} className="p-1 hover:bg-[var(--muted)] rounded-full transition-colors">
                 <X className="w-4 h-4" />
@@ -149,69 +251,79 @@ export default function CampanhasClient({ campanhas: initial }: { campanhas: Cam
             </div>
 
             <form onSubmit={handleCriar} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {/* Nome */}
               <div>
-                <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.4rem' }}>
-                  Nome da Campanha *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ex: Ação de Verão, Queima de Estoque Junho..."
-                  value={form.nome}
-                  onChange={e => setForm(f => ({ ...f, nome: e.target.value }))}
-                  style={{ width: '100%', background: 'var(--background)', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.6rem 0.85rem', fontSize: '0.9rem', color: 'var(--foreground)', outline: 'none', boxSizing: 'border-box' }}
+                <label style={labelStyle}>Nome da Campanha *</label>
+                <input type="text" required placeholder="Ex: Copa do Mundo 2026, Festa Junina..."
+                  value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))}
+                  style={inputStyle}
                   onFocus={e => (e.target.style.borderColor = 'var(--primary)')}
-                  onBlur={e => (e.target.style.borderColor = 'var(--border)')}
-                />
+                  onBlur={e => (e.target.style.borderColor = 'var(--border)')} />
               </div>
 
+              {/* Rede */}
+              <div>
+                <label style={labelStyle}>Rede *</label>
+                <select required value={form.rede} onChange={e => setForm(f => ({ ...f, rede: e.target.value }))}
+                  style={{ ...inputStyle, color: form.rede ? 'var(--foreground)' : 'var(--muted-foreground)' }}>
+                  <option value="">Selecione a rede...</option>
+                  {redes.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+
+              {/* Data + Antecedência */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.4rem' }}>
-                    Data Alvo *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={form.data_alvo}
-                    onChange={e => setForm(f => ({ ...f, data_alvo: e.target.value }))}
-                    style={{ width: '100%', background: 'var(--background)', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.6rem 0.85rem', fontSize: '0.9rem', color: 'var(--foreground)', outline: 'none', boxSizing: 'border-box' }}
-                  />
+                  <label style={labelStyle}>Data Alvo *</label>
+                  <input type="date" required value={form.data_alvo}
+                    onChange={e => setForm(f => ({ ...f, data_alvo: e.target.value }))} style={inputStyle} />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.4rem' }}>
-                    Antecedência (dias)
-                  </label>
-                  <select
-                    value={form.dias_antecedencia}
-                    onChange={e => setForm(f => ({ ...f, dias_antecedencia: Number(e.target.value) }))}
-                    style={{ width: '100%', background: 'var(--background)', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.6rem 0.85rem', fontSize: '0.9rem', color: 'var(--foreground)', outline: 'none', boxSizing: 'border-box' }}
-                  >
-                    {[3, 5, 7, 10, 14, 21, 30].map(d => (
-                      <option key={d} value={d}>{d} dias antes</option>
-                    ))}
+                  <label style={labelStyle}>Antecedência</label>
+                  <select value={form.dias_antecedencia}
+                    onChange={e => setForm(f => ({ ...f, dias_antecedencia: Number(e.target.value) }))} style={inputStyle}>
+                    {[3, 5, 7, 10, 14, 21, 30].map(d => <option key={d} value={d}>{d} dias antes</option>)}
                   </select>
                 </div>
               </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.4rem' }}>
-                  Descrição / Objetivo (opcional)
-                </label>
-                <textarea
-                  placeholder="Ex: Oferecer kit 3x2 nos sabores de verão para todos os parceiros da região..."
-                  value={form.descricao}
-                  onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))}
-                  rows={3}
-                  style={{ width: '100%', background: 'var(--background)', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.6rem 0.85rem', fontSize: '0.85rem', color: 'var(--foreground)', outline: 'none', resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit' }}
-                />
+              {/* Calculadora */}
+              <div style={{ background: 'rgba(0,230,118,0.04)', border: '1px solid rgba(0,230,118,0.15)', borderRadius: '12px', padding: '1rem' }}>
+                <p style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Calculator className="w-3.5 h-3.5" /> Bonificação *
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: formCalc ? '0.75rem' : 0 }}>
+                  <div>
+                    <label style={labelStyle}>Preço Base (R$)</label>
+                    <input type="text" inputMode="decimal" placeholder="0,00"
+                      value={form.preco} onChange={e => setForm(f => ({ ...f, preco: e.target.value }))}
+                      style={inputStyle}
+                      onFocus={e => (e.target.style.borderColor = 'var(--primary)')}
+                      onBlur={e => (e.target.style.borderColor = 'var(--border)')} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Bonificação (%)</label>
+                    <input type="text" inputMode="decimal" placeholder="Ex: 25"
+                      value={form.bonif} onChange={e => setForm(f => ({ ...f, bonif: e.target.value }))}
+                      style={inputStyle}
+                      onFocus={e => (e.target.style.borderColor = 'var(--primary)')}
+                      onBlur={e => (e.target.style.borderColor = 'var(--border)')} />
+                  </div>
+                </div>
+                {formCalc && <CalcPreview preco={parseFloat(form.preco.replace(',', '.'))} bonif={parseFloat(form.bonif.replace(',', '.'))} />}
               </div>
 
-              <button
-                type="submit"
-                disabled={saving || !form.nome.trim() || !form.data_alvo}
-                className="magnetic-button w-full bg-[var(--primary)] text-black py-3 rounded-xl font-bold text-base disabled:opacity-50 transition-all hover:opacity-90"
-              >
+              {/* Descrição */}
+              <div>
+                <label style={labelStyle}>Descrição (opcional)</label>
+                <textarea placeholder="Objetivo da campanha..."
+                  value={form.descricao} onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))}
+                  rows={2}
+                  style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }} />
+              </div>
+
+              <button type="submit" disabled={saving || !formValido}
+                className="magnetic-button w-full bg-[var(--primary)] text-black py-3 rounded-xl font-bold text-base disabled:opacity-40 transition-all hover:opacity-90">
                 {saving ? 'Criando...' : '✓ Criar Campanha'}
               </button>
             </form>
@@ -220,35 +332,30 @@ export default function CampanhasClient({ campanhas: initial }: { campanhas: Cam
 
         {/* Filtros */}
         <div style={{ display: 'flex', gap: '0.5rem' }}>
-          {(['ativas', 'todas', 'encerradas'] as const).map(f => (
-            <button
-              key={f}
-              onClick={() => setFiltro(f)}
+          {([
+            { key: 'todas', label: 'Todas' },
+            { key: 'ativas', label: 'Ativas' },
+            { key: 'sugestoes', label: 'Sugestões' },
+          ] as const).map(f => (
+            <button key={f.key} onClick={() => setFiltro(f.key)}
               style={{
-                padding: '0.4rem 1rem',
-                borderRadius: '999px',
-                fontSize: '0.78rem',
-                fontWeight: 700,
-                border: '1px solid',
-                cursor: 'pointer',
-                transition: 'all 0.15s',
-                borderColor: filtro === f ? 'var(--primary)' : 'var(--border)',
-                background: filtro === f ? 'var(--primary)' : 'transparent',
-                color: filtro === f ? '#000' : 'var(--muted-foreground)',
-              }}
-            >
-              {f === 'ativas' ? 'Ativas' : f === 'encerradas' ? 'Encerradas' : 'Todas'}
+                padding: '0.4rem 1rem', borderRadius: '999px', fontSize: '0.78rem', fontWeight: 700,
+                border: '1px solid', cursor: 'pointer', transition: 'all 0.15s',
+                borderColor: filtro === f.key ? 'var(--primary)' : 'var(--border)',
+                background: filtro === f.key ? 'var(--primary)' : 'transparent',
+                color: filtro === f.key ? '#000' : 'var(--muted-foreground)',
+              }}>
+              {f.label}
             </button>
           ))}
         </div>
 
-        {/* Lista de Campanhas */}
+        {/* Lista */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           {campanhasFiltradas.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--muted-foreground)' }}>
               <Megaphone className="w-10 h-10 mx-auto mb-3 opacity-30" />
               <p style={{ fontWeight: 600 }}>Nenhuma campanha aqui.</p>
-              <p style={{ fontSize: '0.8rem', marginTop: '0.35rem' }}>Crie uma usando o botão "Nova Campanha".</p>
             </div>
           ) : campanhasFiltradas.map(c => {
             const st = statusLabel(c);
@@ -257,32 +364,23 @@ export default function CampanhasClient({ campanhas: initial }: { campanhas: Cam
             const isLoading = loadingId === c.id;
 
             return (
-              <div
-                key={c.id}
-                className="glass-panel stagger-item"
+              <div key={c.id} className="glass-panel stagger-item"
                 style={{
                   borderRadius: '14px',
-                  border: `1px solid ${c.ativa ? 'rgba(0,230,118,0.15)' : 'rgba(107,114,128,0.15)'}`,
+                  border: `1px solid ${c.ativa ? 'rgba(0,230,118,0.2)' : 'rgba(107,114,128,0.15)'}`,
                   overflow: 'hidden',
-                  opacity: c.ativa ? 1 : 0.6,
-                  transition: 'opacity 0.2s',
-                }}
-              >
-                {/* Cabeçalho do card */}
-                <div
-                  style={{ padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}
-                  onClick={() => setExpandedId(isExpanded ? null : c.id)}
-                >
-                  {/* Ícone */}
+                }}>
+
+                {/* Cabeçalho */}
+                <div style={{ padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}
+                  onClick={() => handleExpand(c.id)}>
                   <div style={{
-                    width: '36px', height: '36px', borderRadius: '10px',
+                    width: '36px', height: '36px', borderRadius: '10px', flexShrink: 0,
                     background: c.ativa ? 'rgba(0,230,118,0.12)' : 'rgba(107,114,128,0.12)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
                     <Target className="w-4 h-4" style={{ color: c.ativa ? 'var(--primary)' : '#6b7280' }} />
                   </div>
-
-                  {/* Nome + status */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 700, fontSize: '0.95rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {c.nome}
@@ -290,13 +388,13 @@ export default function CampanhasClient({ campanhas: initial }: { campanhas: Cam
                     <div style={{ fontSize: '0.72rem', color: 'var(--muted-foreground)', marginTop: '0.15rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
                       <Calendar className="w-3 h-3" />
                       {new Date(c.data_alvo).toLocaleDateString('pt-BR', { timeZone: 'UTC', day: '2-digit', month: 'short', year: 'numeric' })}
+                      {c.rede && <span style={{ color: '#a78bfa' }}>· {c.rede}</span>}
+                      {c.preco_base && <span style={{ color: 'var(--primary)', fontWeight: 700 }}>R$ {Number(c.preco_base).toFixed(2)}</span>}
                       <span style={{ color: st.color, background: st.bg, padding: '0.1rem 0.5rem', borderRadius: '999px', fontWeight: 700 }}>
                         {st.label}
                       </span>
                     </div>
                   </div>
-
-                  {/* Chevron */}
                   <div style={{ color: 'var(--muted-foreground)', flexShrink: 0 }}>
                     {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                   </div>
@@ -306,81 +404,123 @@ export default function CampanhasClient({ campanhas: initial }: { campanhas: Cam
                 {isExpanded && (
                   <div style={{ borderTop: '1px solid var(--border)', padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
 
-                    {/* Descrição */}
                     {c.descricao && (
                       <p style={{ fontSize: '0.82rem', color: 'var(--muted-foreground)', fontStyle: 'italic', borderLeft: '2px solid var(--primary)', paddingLeft: '0.75rem', lineHeight: 1.5 }}>
                         {c.descricao}
                       </p>
                     )}
 
-                    {/* Métricas */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
-                      {[
-                        { label: 'Abordados', value: c.total_abordados, color: '#60a5fa' },
-                        { label: 'Compraram', value: c.total_compraram, color: 'var(--primary)' },
-                        { label: 'Conversão', value: `${taxa}%`, color: taxa >= 50 ? 'var(--primary)' : '#facc15' },
-                      ].map(m => (
-                        <div key={m.label} style={{ background: 'var(--muted)', borderRadius: '10px', padding: '0.6rem 0.75rem', textAlign: 'center' }}>
-                          <div style={{ fontSize: '0.65rem', color: 'var(--muted-foreground)', marginBottom: '0.2rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{m.label}</div>
-                          <div style={{ fontWeight: 700, color: m.color, fontSize: '1.1rem' }}>{m.value}</div>
+                    {/* Métricas — só para ativas */}
+                    {c.ativa && (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
+                        {[
+                          { label: 'Abordados', value: c.total_abordados, color: '#60a5fa' },
+                          { label: 'Compraram', value: c.total_compraram, color: 'var(--primary)' },
+                          { label: 'Conversão', value: `${taxa}%`, color: taxa >= 50 ? 'var(--primary)' : '#facc15' },
+                        ].map(m => (
+                          <div key={m.label} style={{ background: 'var(--muted)', borderRadius: '10px', padding: '0.6rem 0.75rem', textAlign: 'center' }}>
+                            <div style={{ fontSize: '0.65rem', color: 'var(--muted-foreground)', marginBottom: '0.2rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{m.label}</div>
+                            <div style={{ fontWeight: 700, color: m.color, fontSize: '1.1rem' }}>{m.value}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Calculadora de ativação — sempre visível quando expandido */}
+                    <div style={{ background: 'rgba(0,230,118,0.04)', border: '1px solid rgba(0,230,118,0.15)', borderRadius: '12px', padding: '1rem' }}>
+                      <p style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <Calculator className="w-3 h-3" />
+                        {c.ativa ? 'Precificação ativa' : 'Configurar para ativar'}
+                      </p>
+
+                      {/* Rede */}
+                      <div style={{ marginBottom: '0.6rem' }}>
+                        <label style={labelStyle}>Rede</label>
+                        <select value={ativForm.rede} onChange={e => setAtivForm(f => ({ ...f, rede: e.target.value }))}
+                          disabled={c.ativa}
+                          style={{ ...inputStyle, opacity: c.ativa ? 0.6 : 1, color: ativForm.rede ? 'var(--foreground)' : 'var(--muted-foreground)' }}>
+                          <option value="">Selecione...</option>
+                          {redes.map(r => <option key={r} value={r}>{r}</option>)}
+                        </select>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: ativCalc ? '0.75rem' : 0 }}>
+                        <div>
+                          <label style={labelStyle}>Preço Base (R$)</label>
+                          <input type="text" inputMode="decimal" placeholder="0,00"
+                            value={ativForm.preco} onChange={e => setAtivForm(f => ({ ...f, preco: e.target.value }))}
+                            disabled={c.ativa} style={{ ...inputStyle, opacity: c.ativa ? 0.6 : 1 }}
+                            onFocus={e => (e.target.style.borderColor = 'var(--primary)')}
+                            onBlur={e => (e.target.style.borderColor = 'var(--border)')} />
                         </div>
-                      ))}
+                        <div>
+                          <label style={labelStyle}>Bonificação (%)</label>
+                          <input type="text" inputMode="decimal" placeholder="Ex: 25"
+                            value={ativForm.bonif} onChange={e => setAtivForm(f => ({ ...f, bonif: e.target.value }))}
+                            disabled={c.ativa} style={{ ...inputStyle, opacity: c.ativa ? 0.6 : 1 }}
+                            onFocus={e => (e.target.style.borderColor = 'var(--primary)')}
+                            onBlur={e => (e.target.style.borderColor = 'var(--border)')} />
+                        </div>
+                      </div>
+                      {ativCalc && (
+                        <CalcPreview
+                          preco={parseFloat(ativForm.preco.replace(',', '.'))}
+                          bonif={parseFloat(ativForm.bonif.replace(',', '.'))}
+                        />
+                      )}
                     </div>
 
                     {/* Ações */}
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', paddingTop: '0.25rem' }}>
-                      {/* Destaque: Gerenciar Parceiros */}
-                      <Link
-                        href={`/campanhas/${c.id}`}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: '0.4rem',
-                          padding: '0.45rem 0.9rem', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700,
-                          border: '1px solid var(--primary)',
-                          background: 'var(--primary)', color: '#000',
-                          textDecoration: 'none', transition: 'all 0.15s',
-                        }}
-                      >
-                        <Users className="w-3.5 h-3.5" />
-                        Gerenciar Parceiros
-                        <ArrowRight className="w-3 h-3" />
-                      </Link>
-
-                      <button
-                        onClick={() => handleToggle(c)}
-                        disabled={isLoading}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: '0.4rem',
-                          padding: '0.45rem 0.9rem', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700,
-                          border: `1px solid ${c.ativa ? '#6b7280' : 'var(--primary)'}`,
-                          background: 'transparent',
-                          color: c.ativa ? '#6b7280' : 'var(--primary)',
-                          cursor: 'pointer', transition: 'all 0.15s',
-                          opacity: isLoading ? 0.5 : 1,
-                        }}
-                      >
-                        <Power className="w-3.5 h-3.5" />
-                        {c.ativa ? 'Pausar' : 'Reativar'}
-                      </button>
-
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', paddingTop: '0.1rem' }}>
                       {c.ativa && (
-                        <button
-                          onClick={() => handleEncerrar(c)}
-                          disabled={isLoading}
+                        <Link href={`/campanhas/${c.id}`}
                           style={{
                             display: 'flex', alignItems: 'center', gap: '0.4rem',
                             padding: '0.45rem 0.9rem', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700,
-                            border: '1px solid rgba(239,68,68,0.4)',
-                            background: 'transparent', color: '#ef4444',
-                            cursor: 'pointer', transition: 'all 0.15s',
+                            border: '1px solid var(--primary)', background: 'var(--primary)', color: '#000',
+                            textDecoration: 'none', transition: 'all 0.15s',
+                          }}>
+                          <Users className="w-3.5 h-3.5" /> Gerenciar Parceiros <ArrowRight className="w-3 h-3" />
+                        </Link>
+                      )}
+
+                      {c.ativa ? (
+                        <button onClick={() => handlePausar(c)} disabled={isLoading}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: '0.4rem',
+                            padding: '0.45rem 0.9rem', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700,
+                            border: '1px solid #6b7280', background: 'transparent', color: '#6b7280',
+                            cursor: 'pointer', opacity: isLoading ? 0.5 : 1,
+                          }}>
+                          <Power className="w-3.5 h-3.5" /> Pausar
+                        </button>
+                      ) : (
+                        <button onClick={() => handleAtivar(c)} disabled={isLoading || !ativValido}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: '0.4rem',
+                            padding: '0.45rem 0.9rem', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700,
+                            border: '1px solid var(--primary)', background: ativValido ? 'var(--primary)' : 'transparent',
+                            color: ativValido ? '#000' : 'var(--muted-foreground)',
+                            cursor: ativValido ? 'pointer' : 'not-allowed',
                             opacity: isLoading ? 0.5 : 1,
-                          }}
-                        >
-                          <X className="w-3.5 h-3.5" />
-                          Encerrar
+                          }}>
+                          <Power className="w-3.5 h-3.5" /> Ativar Campanha
                         </button>
                       )}
 
-                      <span style={{ marginLeft: 'auto', fontSize: '0.68rem', color: 'var(--muted-foreground)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                      {c.ativa && (
+                        <button onClick={() => handleEncerrar(c)} disabled={isLoading}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: '0.4rem',
+                            padding: '0.45rem 0.9rem', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700,
+                            border: '1px solid rgba(239,68,68,0.4)', background: 'transparent', color: '#ef4444',
+                            cursor: 'pointer', opacity: isLoading ? 0.5 : 1,
+                          }}>
+                          <X className="w-3.5 h-3.5" /> Encerrar
+                        </button>
+                      )}
+
+                      <span style={{ marginLeft: 'auto', fontSize: '0.68rem', color: 'var(--muted-foreground)', display: 'flex', alignItems: 'center' }}>
                         Criada em {new Date(c.criado_em).toLocaleDateString('pt-BR')}
                       </span>
                     </div>

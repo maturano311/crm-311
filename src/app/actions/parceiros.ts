@@ -177,17 +177,23 @@ export async function criarCampanha(data: {
   data_alvo: string;
   descricao?: string;
   dias_antecedencia?: number;
+  rede: string;
+  preco_base: number;
+  bonificacao_pct: number;
 }) {
   try {
     const res = await pool.query(`
-      INSERT INTO campanhas (nome, data_alvo, descricao, dias_antecedencia, ativa)
-      VALUES ($1, $2, $3, $4, false)
+      INSERT INTO campanhas (nome, data_alvo, descricao, dias_antecedencia, ativa, rede, preco_base, bonificacao_pct)
+      VALUES ($1, $2, $3, $4, false, $5, $6, $7)
       RETURNING id, nome, data_alvo
     `, [
       data.nome.trim(),
       data.data_alvo,
       data.descricao?.trim() || null,
       data.dias_antecedencia || 7,
+      data.rede,
+      data.preco_base,
+      data.bonificacao_pct,
     ]);
     return { success: true, campanha: res.rows[0] };
   } catch (e: any) {
@@ -195,7 +201,20 @@ export async function criarCampanha(data: {
   }
 }
 
-// Ativa ou desativa uma campanha
+// Ativa campanha com preço e rede (obrigatório)
+export async function ativarCampanhaComPreco(id: number, rede: string, preco_base: number, bonificacao_pct: number) {
+  try {
+    await pool.query(
+      `UPDATE campanhas SET ativa = true, rede = $2, preco_base = $3, bonificacao_pct = $4 WHERE id = $1`,
+      [id, rede, preco_base, bonificacao_pct]
+    );
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+// Pausa (desativa) uma campanha
 export async function toggleCampanhaAtiva(id: number, ativa: boolean) {
   try {
     await pool.query('UPDATE campanhas SET ativa = $2 WHERE id = $1', [id, ativa]);
