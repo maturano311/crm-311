@@ -141,6 +141,8 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
   const foiVisitadoSemana = (p: any) => p.visitado_esta_semana === true;
 
   const [salvandoVisita, setSalvandoVisita] = useState(false);
+  const [notaDossie, setNotaDossie] = useState('');
+  const [salvandoNota, setSalvandoNota] = useState(false);
   const [editModal, setEditModal] = useState<EditModalState | null>(null);
   const [salvandoEdicao, setSalvandoEdicao] = useState(false);
   const [rankingModal, setRankingModal] = useState(false);
@@ -479,6 +481,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
 
   const abrirDossie = async (p: any) => {
     setSelectedParceiro(p);
+    setNotaDossie(p.obs_comercial || '');
     setLoadingHistorico(true);
     try {
       const hist = await buscarHistoricoVisitas(p.id);
@@ -1563,12 +1566,57 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
                 </div>
               </div>
 
-              {selectedParceiro.obs_comercial && (
-                <div className="bg-[var(--muted)]/30 p-3 rounded-xl border border-[var(--border)]">
-                  <h3 className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-wider mb-1">Observações Comerciais</h3>
-                  <p className="text-sm whitespace-pre-wrap">{selectedParceiro.obs_comercial}</p>
-                </div>
-              )}
+              {/* Nota do cliente — editável inline */}
+              <div className="bg-[var(--muted)]/30 p-3 rounded-xl border border-[var(--border)] space-y-2">
+                <h3 className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-wider">Nota do Cliente</h3>
+                <textarea
+                  value={notaDossie}
+                  onChange={e => setNotaDossie(e.target.value)}
+                  rows={3}
+                  placeholder="Escreva algo sobre este cliente..."
+                  className="w-full bg-[var(--background)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm focus:border-cyan-400 outline-none resize-none"
+                />
+                {notaDossie !== (selectedParceiro.obs_comercial || '') && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setNotaDossie(selectedParceiro.obs_comercial || '')}
+                      className="flex-1 py-2 rounded-lg text-xs font-bold border border-[var(--border)] text-[var(--muted-foreground)] hover:text-white transition-all"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      disabled={salvandoNota}
+                      onClick={async () => {
+                        setSalvandoNota(true);
+                        const res = await atualizarParceiro(selectedParceiro.id, {
+                          nome_fantasia: selectedParceiro.nome_fantasia || '',
+                          cod_parceiro: selectedParceiro.cod_parceiro ?? null,
+                          regiao: selectedParceiro.regiao || '',
+                          sequencia: selectedParceiro.sequencia ?? null,
+                          endereco: selectedParceiro.endereco || '',
+                          numero: selectedParceiro.numero || '',
+                          bairro: selectedParceiro.bairro || '',
+                          cidade: selectedParceiro.cidade || '',
+                          perfil: selectedParceiro.perfil || '',
+                          tabela_preco: selectedParceiro.tabela_preco || '',
+                          telefone: selectedParceiro.telefone || '',
+                          obs_comercial: notaDossie,
+                          obs_loja: selectedParceiro.obs_loja || '',
+                        });
+                        if (res.success) {
+                          const updated = { ...selectedParceiro, obs_comercial: notaDossie };
+                          setSelectedParceiro(updated);
+                          setLocalParceiros(prev => prev.map(lp => lp.id === updated.id ? { ...lp, obs_comercial: notaDossie } : lp));
+                        }
+                        setSalvandoNota(false);
+                      }}
+                      className="flex-1 py-2 rounded-lg text-xs font-bold bg-cyan-500 text-black hover:bg-cyan-400 transition-all disabled:opacity-50"
+                    >
+                      {salvandoNota ? 'Salvando...' : 'Salvar Nota'}
+                    </button>
+                  </div>
+                )}
+              </div>
 
               {/* Waze */}
               {(() => {
