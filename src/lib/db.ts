@@ -9,6 +9,10 @@ if (!global.pgPool) {
     ssl: { rejectUnauthorized: false },
   });
 
+  global.pgPool.on('connect', (client) => {
+    client.query("SET timezone = 'America/Sao_Paulo'");
+  });
+
   (async () => {
     try {
       const p = global.pgPool!;

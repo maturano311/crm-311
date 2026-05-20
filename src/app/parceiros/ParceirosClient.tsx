@@ -648,7 +648,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
             <div className="flex items-center gap-3 mt-1 flex-wrap">
               {visitadosHoje > 0 && (
                 <span className="text-xs text-emerald-400 flex items-center gap-1">
-                  ✓ {visitadosHoje} visitado{visitadosHoje > 1 ? 's' : ''} hoje
+                  ✓ {visitadosHoje} visitado{visitadosHoje > 1 ? 's' : ''} na semana
                 </span>
               )}
               {rotaOrganizada && (
