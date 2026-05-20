@@ -127,7 +127,12 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
   const [historicoVisitas, setHistoricoVisitas] = useState<any[]>([]);
   const [loadingHistorico, setLoadingHistorico] = useState(false);
   const [activeTab, setActiveTab] = useState<'todos' | number>('todos');
-  const [rotasPorTab, setRotasPorTab] = useState<Record<string, { organizada: boolean; ordem: any[] }>>({});
+  const [rotasPorTab, setRotasPorTab] = useState<Record<string, { organizada: boolean; ordem: any[] }>>(() => {
+    if (typeof window !== 'undefined') {
+      try { const s = sessionStorage.getItem('crm_rotasPorTab'); if (s) return JSON.parse(s); } catch {}
+    }
+    return {};
+  });
   const tabKey = String(activeTab);
   const rotaOrganizada = rotasPorTab[tabKey]?.organizada ?? false;
   const ordemRota = rotasPorTab[tabKey]?.ordem ?? [];
@@ -161,6 +166,10 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
 
   // Limpa o timer ao desmontar
   useEffect(() => () => { if (undoTimerRef.current) clearTimeout(undoTimerRef.current); }, []);
+
+  useEffect(() => {
+    try { sessionStorage.setItem('crm_rotasPorTab', JSON.stringify(rotasPorTab)); } catch {}
+  }, [rotasPorTab]);
 
   // Mini-perfil do lead próximo
   const [leadModal, setLeadModal] = useState<any | null>(null);
@@ -765,8 +774,8 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-base hover:text-cyan-400 transition-colors truncate">{p.nome_fantasia}</h3>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <h3 className="font-bold text-base hover:text-cyan-400 transition-colors truncate flex-1 min-w-0">{p.nome_fantasia}</h3>
                     {p.cod_parceiro && (
                       <span className="flex-shrink-0 text-[11px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">
                         #{p.cod_parceiro}
@@ -790,6 +799,9 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
                     {p.compras_mes > 0 && <span className="text-[10px] text-emerald-400">✓ {p.compras_mes} compra(s) no mês</span>}
                     {p.ticket_medio && <span className="text-[10px] text-cyan-400 font-bold">∅ R$ {Number(p.ticket_medio).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>}
                   </div>
+                  {p.ultima_obs_visita && (
+                    <p className="text-[10px] text-[var(--muted-foreground)] italic mt-1 truncate">📝 {p.ultima_obs_visita}</p>
+                  )}
                   <div className="flex gap-1 mt-1.5">
                     {Array.from({ length: totalSemanas }, (_, i) => i + 1).map(s => {
                       const visitou = (p.semanas_visitadas || []).includes(s);
@@ -811,10 +823,10 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
               <div className="flex gap-1.5 flex-wrap justify-end" onClick={e => e.stopPropagation()}>
                 <button
                   onClick={e => abrirEditModal(p, e)}
-                  className="p-1.5 rounded-lg border border-[var(--border)] text-[var(--muted-foreground)] hover:border-cyan-400 hover:text-cyan-400 transition-all"
+                  className="p-2.5 rounded-lg border border-[var(--border)] text-[var(--muted-foreground)] hover:border-cyan-400 hover:text-cyan-400 transition-all"
                   title="Editar parceiro"
                 >
-                  <Pencil className="w-3.5 h-3.5" />
+                  <Pencil className="w-4 h-4" />
                 </button>
                 {(() => {
                   const wazeUrl = p.lat && p.lng
@@ -1492,22 +1504,28 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
       {/* Dossiê Modal — sempre centralizado, fecha ao clicar fora */}
       {selectedParceiro && (
         <div
-          className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4"
           onClick={() => setSelectedParceiro(null)}
         >
           <div
-            className="bg-[var(--card)] w-full max-w-2xl rounded-2xl border border-[var(--border)] shadow-2xl overflow-hidden max-h-[85vh] flex flex-col"
+            className="bg-[var(--card)] w-full max-w-2xl rounded-t-2xl sm:rounded-2xl border border-[var(--border)] shadow-2xl overflow-hidden max-h-[90vh] sm:max-h-[85vh] flex flex-col"
             onClick={e => e.stopPropagation()}
           >
+            {/* Handle de arrastar — visível só no mobile */}
+            <div className="flex justify-center pt-3 pb-0 flex-shrink-0 sm:hidden">
+              <div className="w-10 h-1 rounded-full bg-[var(--muted)]" />
+            </div>
             <div className="p-5 border-b border-[var(--border)] flex justify-between items-start bg-[var(--secondary)]/30 flex-shrink-0">
-              <div>
-                <h2 className="text-xl font-bold text-cyan-400">{selectedParceiro.nome_fantasia}</h2>
-                <p className="text-xs text-[var(--muted-foreground)] mt-1">
-                  {selectedParceiro.razao_social || ''} • Cód: {selectedParceiro.cod_parceiro || '?'}
-                  {selectedParceiro.regiao && <span className="ml-2 px-1.5 py-0.5 bg-[var(--secondary)] rounded font-bold">R{selectedParceiro.regiao}</span>}
+              <div className="flex-1 min-w-0 pr-2">
+                <h2 className="text-xl font-bold text-cyan-400 truncate">{selectedParceiro.nome_fantasia}</h2>
+                <p className="text-xs text-[var(--muted-foreground)] mt-1 flex items-center gap-1 flex-wrap">
+                  {selectedParceiro.cod_parceiro && <span className="font-mono font-bold text-amber-400">#{selectedParceiro.cod_parceiro}</span>}
+                  {selectedParceiro.cod_parceiro && <span>•</span>}
+                  {selectedParceiro.razao_social || ''}
+                  {selectedParceiro.regiao && <span className="ml-1 px-1.5 py-0.5 bg-[var(--secondary)] rounded font-bold">R{selectedParceiro.regiao}</span>}
                 </p>
               </div>
-              <button onClick={() => setSelectedParceiro(null)} className="p-2 hover:bg-[var(--muted)] rounded-full transition-colors flex-shrink-0 ml-2" title="Fechar">
+              <button onClick={() => setSelectedParceiro(null)} className="p-3 hover:bg-[var(--muted)] rounded-full transition-colors flex-shrink-0" title="Fechar">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1606,6 +1624,15 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
                   </div>
                 )}
               </div>
+            </div>
+            {/* Bot\u00e3o fechar fixo no rodap\u00e9 \u2014 facilita fechar no mobile */}
+            <div className="flex-shrink-0 p-4 border-t border-[var(--border)] sm:hidden">
+              <button
+                onClick={() => setSelectedParceiro(null)}
+                className="w-full py-3 rounded-xl text-sm font-bold border border-[var(--border)] text-[var(--muted-foreground)] hover:text-white hover:border-white transition-all"
+              >
+                Fechar
+              </button>
             </div>
           </div>
         </div>

@@ -26,6 +26,7 @@ export default async function ParceirosPage() {
           WHERE parceiro_id = p.id
             AND data_visita::date >= date_trunc('week', CURRENT_DATE)::date
         ) as visitado_esta_semana,
+        (SELECT observacao FROM visitas_parceiro WHERE parceiro_id = p.id AND observacao IS NOT NULL AND observacao != '' ORDER BY data_visita DESC LIMIT 1) as ultima_obs_visita,
         (SELECT ROUND(AVG(valor_pedido)::numeric, 2) FROM visitas_parceiro WHERE parceiro_id = p.id AND comprou = true AND status = 'confirmado' AND valor_pedido > 0) as ticket_medio,
         ARRAY(
           SELECT DISTINCT CEIL(EXTRACT(day FROM data_visita) / 7.0)::INTEGER
