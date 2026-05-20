@@ -133,10 +133,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
   const ordemRota = rotasPorTab[tabKey]?.ordem ?? [];
   const [visitaModal, setVisitaModal] = useState<VisitaModalState | null>(null);
 
-  // Dias corridos desde segunda-feira dessa semana (0=seg, 1=ter, …, 6=dom)
-  const diasDesdeSegunda = (new Date().getDay() + 6) % 7;
-  const foiVisitadoSemana = (p: any) =>
-    p.dias_sem_visita !== null && Number(p.dias_sem_visita) <= diasDesdeSegunda;
+  const foiVisitadoSemana = (p: any) => p.visitado_esta_semana === true;
 
   const [salvandoVisita, setSalvandoVisita] = useState(false);
   const [editModal, setEditModal] = useState<EditModalState | null>(null);
@@ -415,6 +412,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
           ...lp,
           semanas_visitadas: [...semanas],
           dias_sem_visita: 0,
+          visitado_esta_semana: true,
           visitas_mes: (lp.visitas_mes || 0) + 1,
           compras_mes: visitaModal.comprou ? (lp.compras_mes || 0) + 1 : lp.compras_mes,
           ultima_visita: new Date().toISOString(),

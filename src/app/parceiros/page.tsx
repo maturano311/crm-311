@@ -21,6 +21,11 @@ export default async function ParceirosPage() {
         (SELECT COUNT(*) FROM visitas_parceiro WHERE parceiro_id = p.id AND data_visita >= date_trunc('month', CURRENT_DATE))::INTEGER as visitas_mes,
         (SELECT COUNT(*) FROM visitas_parceiro WHERE parceiro_id = p.id AND comprou = true AND status = 'confirmado' AND data_visita >= date_trunc('month', CURRENT_DATE))::INTEGER as compras_mes,
         (SELECT (CURRENT_DATE - MAX(data_visita))::INTEGER FROM visitas_parceiro WHERE parceiro_id = p.id) as dias_sem_visita,
+        EXISTS (
+          SELECT 1 FROM visitas_parceiro
+          WHERE parceiro_id = p.id
+            AND data_visita >= date_trunc('week', CURRENT_DATE)
+        ) as visitado_esta_semana,
         (SELECT ROUND(AVG(valor_pedido)::numeric, 2) FROM visitas_parceiro WHERE parceiro_id = p.id AND comprou = true AND status = 'confirmado' AND valor_pedido > 0) as ticket_medio,
         ARRAY(
           SELECT DISTINCT CEIL(EXTRACT(day FROM data_visita) / 7.0)::INTEGER
