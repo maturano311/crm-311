@@ -24,7 +24,7 @@ export default async function ParceirosPage() {
         EXISTS (
           SELECT 1 FROM visitas_parceiro
           WHERE parceiro_id = p.id
-            AND data_visita >= date_trunc('week', CURRENT_DATE)
+            AND data_visita::date >= date_trunc('week', CURRENT_DATE)::date
         ) as visitado_esta_semana,
         (SELECT ROUND(AVG(valor_pedido)::numeric, 2) FROM visitas_parceiro WHERE parceiro_id = p.id AND comprou = true AND status = 'confirmado' AND valor_pedido > 0) as ticket_medio,
         ARRAY(
