@@ -775,12 +775,12 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
                 )}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 min-w-0">
-                    <h3 className="font-bold text-base hover:text-cyan-400 transition-colors truncate flex-1 min-w-0">{p.nome_fantasia}</h3>
                     {p.cod_parceiro && (
                       <span className="flex-shrink-0 text-[11px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">
                         #{p.cod_parceiro}
                       </span>
                     )}
+                    <h3 className="font-bold text-base hover:text-cyan-400 transition-colors truncate flex-1 min-w-0">{p.nome_fantasia}</h3>
                     {/* Mostra sequencia nas abas de sequência */}
                     {typeof activeTab === 'number' && p.sequencia && (
                       <span className="flex-shrink-0 text-[11px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-500/15 text-slate-300 border border-slate-500/30">
