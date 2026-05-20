@@ -160,11 +160,20 @@ export async function buscarCampanhasAtivas() {
 // Busca TODAS as campanhas (para o painel de gestão)
 export async function buscarTodasCampanhas() {
   const res = await pool.query(`
-    SELECT 
+    SELECT
       c.*,
       (c.data_alvo - CURRENT_DATE) as dias_restantes,
       (SELECT COUNT(*) FROM campanha_parceiros cp WHERE cp.campanha_id = c.id AND cp.abordado = true)::INTEGER as total_abordados,
-      (SELECT COUNT(*) FROM campanha_parceiros cp WHERE cp.campanha_id = c.id AND cp.comprou = true)::INTEGER as total_compraram
+      (SELECT COUNT(*) FROM campanha_parceiros cp WHERE cp.campanha_id = c.id AND cp.comprou = true)::INTEGER as total_compraram,
+      COALESCE(
+        (SELECT json_agg(json_build_object(
+          'rede', cp2.rede,
+          'preco_base', cp2.preco_base,
+          'bonificacao_pct', cp2.bonificacao_pct
+        ) ORDER BY cp2.rede)
+        FROM campanha_precos cp2 WHERE cp2.campanha_id = c.id),
+        '[]'::json
+      ) as precos
     FROM campanhas c
     ORDER BY c.ativa DESC, c.data_alvo ASC
   `);
@@ -220,10 +229,55 @@ export async function toggleCampanhaAtiva(id: number, ativa: boolean) {
   }
 }
 
-// Encerra definitivamente (marca inativa)
+// Encerra definitivamente: limpa rede/preço e desativa (volta a ser sugestão limpa)
 export async function encerrarCampanha(id: number) {
   try {
-    await pool.query('UPDATE campanhas SET ativa = false WHERE id = $1', [id]);
+    await pool.query(
+      'UPDATE campanhas SET ativa = false, rede = NULL, preco_base = NULL, bonificacao_pct = NULL WHERE id = $1',
+      [id]
+    );
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+// Adiciona (ou atualiza) uma rede+preço na campanha — ativa a campanha automaticamente
+export async function adicionarRedeCampanha(
+  campanhaId: number,
+  rede: string,
+  preco_base: number,
+  bonificacao_pct: number
+) {
+  try {
+    await pool.query(`
+      INSERT INTO campanha_precos (campanha_id, rede, preco_base, bonificacao_pct)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (campanha_id, rede) DO UPDATE SET
+        preco_base = EXCLUDED.preco_base,
+        bonificacao_pct = EXCLUDED.bonificacao_pct
+    `, [campanhaId, rede, preco_base, bonificacao_pct]);
+    await pool.query('UPDATE campanhas SET ativa = true WHERE id = $1', [campanhaId]);
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+// Remove uma rede da campanha; se não restar nenhuma, desativa a campanha
+export async function removerRedeCampanha(campanhaId: number, rede: string) {
+  try {
+    await pool.query(
+      'DELETE FROM campanha_precos WHERE campanha_id = $1 AND rede = $2',
+      [campanhaId, rede]
+    );
+    const { rows } = await pool.query(
+      'SELECT COUNT(*) as cnt FROM campanha_precos WHERE campanha_id = $1',
+      [campanhaId]
+    );
+    if (Number(rows[0].cnt) === 0) {
+      await pool.query('UPDATE campanhas SET ativa = false WHERE id = $1', [campanhaId]);
+    }
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e.message };

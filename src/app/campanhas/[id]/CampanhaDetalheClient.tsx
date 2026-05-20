@@ -31,11 +31,13 @@ interface Campanha {
   data_alvo: string;
   descricao: string | null;
   ativa: boolean;
+  rede: string | null;
+  preco_base: number | null;
+  bonificacao_pct: number | null;
   dias_restantes: number;
   total_abordados: number;
   total_compraram: number;
   total_participantes: number;
-  rede: string | null;
 }
 
 function statusCor(dias: number, ativa: boolean) {
@@ -332,6 +334,11 @@ export default function CampanhaDetalheClient({
                   <div style={{ fontSize: '0.72rem', color: 'var(--muted-foreground)', marginTop: '0.15rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                     {p.regiao && <span>📍 {p.regiao}</span>}
                     {p.cidade && <span>{p.cidade}</span>}
+                    {campanha.rede && campanha.rede === p.tabela_preco && campanha.preco_base != null && (
+                      <span style={{ color: 'var(--primary)', fontWeight: 700 }}>
+                        R$ {Number(campanha.preco_base).toFixed(2)} · {campanha.bonificacao_pct}%
+                      </span>
+                    )}
                     {p.data_abordagem && (
                       <span style={{ color: '#60a5fa' }}>
                         Abordado em {new Date(p.data_abordagem).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
@@ -429,6 +436,13 @@ export default function CampanhaDetalheClient({
                     {p.regiao && <span>📍 {p.regiao}</span>}
                     {p.cidade && <span>{p.cidade}</span>}
                     {p.perfil && <span style={{ background: 'var(--muted)', padding: '0.05rem 0.35rem', borderRadius: '4px' }}>{p.perfil}</span>}
+                    {campanha.rede && campanha.rede === p.tabela_preco && campanha.preco_base != null ? (
+                      <span style={{ color: 'var(--primary)', fontWeight: 700 }}>
+                        R$ {Number(campanha.preco_base).toFixed(2)} · {campanha.bonificacao_pct}%
+                      </span>
+                    ) : (
+                      <span style={{ color: '#6b7280' }}>{p.tabela_preco || 'sem tabela'}</span>
+                    )}
                   </div>
                 </div>
 

@@ -5,9 +5,12 @@ import Link from 'next/link';
 import {
   Target, Plus, X, ChevronDown, ChevronUp,
   Calendar, Users, Power, Home,
-  UserCheck, Megaphone, ArrowRight, Calculator
+  UserCheck, Megaphone, ArrowRight, Calculator,
 } from 'lucide-react';
-import { criarCampanha, toggleCampanhaAtiva, encerrarCampanha, ativarCampanhaComPreco } from '../actions/parceiros';
+import {
+  criarCampanha, toggleCampanhaAtiva, encerrarCampanha,
+  ativarCampanhaComPreco,
+} from '../actions/parceiros';
 
 interface Campanha {
   id: number;
@@ -16,13 +19,13 @@ interface Campanha {
   descricao: string | null;
   dias_antecedencia: number;
   ativa: boolean;
+  rede: string | null;
+  preco_base: number | null;
+  bonificacao_pct: number | null;
   criado_em: string;
   dias_restantes: number;
   total_abordados: number;
   total_compraram: number;
-  rede: string | null;
-  preco_base: number | null;
-  bonificacao_pct: number | null;
 }
 
 function calcBonif(preco: number, bonif: number) {
@@ -97,28 +100,20 @@ export default function CampanhasClient({
   const [saving, setSaving] = useState(false);
   const formValido = !!(form.nome.trim() && form.data_alvo);
 
-  // Form de ativação inline (por card)
+  // Form de ativação (por card expandido)
   const [ativForm, setAtivForm] = useState({ rede: '', preco: '', bonif: '' });
-  const ativCalc = calcBonif(
-    parseFloat(ativForm.preco.replace(',', '.')),
-    parseFloat(ativForm.bonif.replace(',', '.'))
-  );
+  const ativPreco = parseFloat(ativForm.preco.replace(',', '.'));
+  const ativBonif = parseFloat(ativForm.bonif.replace(',', '.'));
+  const ativCalc = calcBonif(ativPreco, ativBonif);
   const ativValido = !!(ativForm.rede && ativCalc);
 
-  const handleExpand = (id: number | null) => {
-    setExpandedId(prev => {
-      const next = prev === id ? null : id;
-      if (next) {
-        const c = campanhas.find(x => x.id === next);
-        if (c) {
-          setAtivForm({
-            rede: c.rede || '',
-            preco: c.preco_base ? String(c.preco_base) : '',
-            bonif: c.bonificacao_pct ? String(c.bonificacao_pct) : '',
-          });
-        }
-      }
-      return next;
+  const handleExpand = (c: Campanha | null) => {
+    const id = c?.id ?? null;
+    setExpandedId(prev => (prev === id ? null : id));
+    setAtivForm({
+      rede: c?.rede || '',
+      preco: c?.preco_base != null ? String(c.preco_base) : '',
+      bonif: c?.bonificacao_pct != null ? String(c.bonificacao_pct) : '',
     });
   };
 
@@ -139,11 +134,7 @@ export default function CampanhasClient({
       dias_antecedencia: form.dias_antecedencia,
     });
     if (res.success && res.campanha) {
-      setCampanhas(prev => [...prev, {
-        ...res.campanha!,
-        total_abordados: 0,
-        total_compraram: 0,
-      }]);
+      setCampanhas(prev => [...prev, { ...res.campanha!, total_abordados: 0, total_compraram: 0 }]);
       setShowForm(false);
       setForm({ nome: '', data_alvo: '', descricao: '', dias_antecedencia: 7 });
     } else {
@@ -159,41 +150,50 @@ export default function CampanhasClient({
     setLoadingId(null);
   };
 
+  const handleReativar = async (c: Campanha) => {
+    setLoadingId(c.id);
+    const res = await toggleCampanhaAtiva(c.id, true);
+    if (res.success) setCampanhas(prev => prev.map(x => x.id === c.id ? { ...x, ativa: true } : x));
+    setLoadingId(null);
+  };
+
   const handleAtivar = async (c: Campanha) => {
     if (!ativValido) return;
     setLoadingId(c.id);
-    const preco = parseFloat(ativForm.preco.replace(',', '.'));
-    const bonif = parseFloat(ativForm.bonif.replace(',', '.'));
-    const res = await ativarCampanhaComPreco(c.id, ativForm.rede, preco, bonif);
+    const res = await ativarCampanhaComPreco(c.id, ativForm.rede, ativPreco, ativBonif);
     if (res.success) {
-      setCampanhas(prev => prev.map(x =>
-        x.id === c.id ? { ...x, ativa: true, rede: ativForm.rede, preco_base: preco, bonificacao_pct: bonif } : x
+      setCampanhas(prev => prev.map(x => x.id === c.id
+        ? { ...x, ativa: true, rede: ativForm.rede, preco_base: ativPreco, bonificacao_pct: ativBonif }
+        : x
       ));
-      setExpandedId(null);
     } else {
-      alert('Erro ao ativar: ' + (res as any).error);
+      alert('Erro ao ativar campanha: ' + (res as any).error);
     }
+    setLoadingId(null);
+  };
+
+  const handleEncerrar = async (c: Campanha) => {
+    if (!confirm(`Encerrar "${c.nome}"? A campanha voltará a ser uma sugestão limpa.`)) return;
+    setLoadingId(c.id);
+    await encerrarCampanha(c.id);
+    setCampanhas(prev => prev.map(x => x.id === c.id
+      ? { ...x, ativa: false, rede: null, preco_base: null, bonificacao_pct: null }
+      : x
+    ));
     setLoadingId(null);
   };
 
   const handleDuplicar = async (c: Campanha) => {
-    const res = await criarCampanha({ nome: c.nome, data_alvo: c.data_alvo.slice(0, 10), descricao: c.descricao || undefined, dias_antecedencia: c.dias_antecedencia });
+    const dataAlvo = new Date(c.data_alvo).toISOString().slice(0, 10);
+    const res = await criarCampanha({ nome: c.nome, data_alvo: dataAlvo, descricao: c.descricao || undefined, dias_antecedencia: c.dias_antecedencia });
     if (res.success && res.campanha) {
-      const nova = { ...res.campanha!, total_abordados: 0, total_compraram: 0 };
+      const nova: Campanha = { ...res.campanha!, total_abordados: 0, total_compraram: 0 };
       setCampanhas(prev => [...prev, nova]);
       setExpandedId(null);
-      setTimeout(() => handleExpand(nova.id), 50);
+      setTimeout(() => handleExpand(nova), 50);
     } else {
       alert('Erro: ' + res.error);
     }
-  };
-
-  const handleEncerrar = async (c: Campanha) => {
-    if (!confirm(`Encerrar a campanha "${c.nome}"?`)) return;
-    setLoadingId(c.id);
-    await encerrarCampanha(c.id);
-    setCampanhas(prev => prev.map(x => x.id === c.id ? { ...x, ativa: false } : x));
-    setLoadingId(null);
   };
 
   const taxaConversao = (c: Campanha) =>
@@ -255,7 +255,6 @@ export default function CampanhasClient({
             </div>
 
             <form onSubmit={handleCriar} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {/* Nome */}
               <div>
                 <label style={labelStyle}>Nome da Campanha *</label>
                 <input type="text" required placeholder="Ex: Copa do Mundo 2026, Festa Junina..."
@@ -264,8 +263,6 @@ export default function CampanhasClient({
                   onFocus={e => (e.target.style.borderColor = 'var(--primary)')}
                   onBlur={e => (e.target.style.borderColor = 'var(--border)')} />
               </div>
-
-              {/* Data + Antecedência */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                 <div>
                   <label style={labelStyle}>Data Alvo *</label>
@@ -280,8 +277,6 @@ export default function CampanhasClient({
                   </select>
                 </div>
               </div>
-
-              {/* Descrição */}
               <div>
                 <label style={labelStyle}>Descrição (opcional)</label>
                 <textarea placeholder="Objetivo da campanha..."
@@ -289,7 +284,6 @@ export default function CampanhasClient({
                   rows={2}
                   style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }} />
               </div>
-
               <button type="submit" disabled={saving || !formValido}
                 className="magnetic-button w-full bg-[var(--primary)] text-black py-3 rounded-xl font-bold text-base disabled:opacity-40 transition-all hover:opacity-90">
                 {saving ? 'Criando...' : '✓ Criar Campanha'}
@@ -341,7 +335,7 @@ export default function CampanhasClient({
 
                 {/* Cabeçalho */}
                 <div style={{ padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}
-                  onClick={() => handleExpand(c.id)}>
+                  onClick={() => handleExpand(isExpanded ? null : c)}>
                   <div style={{
                     width: '36px', height: '36px', borderRadius: '10px', flexShrink: 0,
                     background: c.ativa ? 'rgba(0,230,118,0.12)' : 'rgba(107,114,128,0.12)',
@@ -351,13 +345,19 @@ export default function CampanhasClient({
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 700, fontSize: '0.95rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {c.nome}
+                      {c.nome}{c.rede ? ` · ${c.rede.replace(/TABELA\s*/i, '')}` : ''}
                     </div>
                     <div style={{ fontSize: '0.72rem', color: 'var(--muted-foreground)', marginTop: '0.15rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
                       <Calendar className="w-3 h-3" />
                       {new Date(c.data_alvo).toLocaleDateString('pt-BR', { timeZone: 'UTC', day: '2-digit', month: 'short', year: 'numeric' })}
-                      {c.rede && <span style={{ color: '#a78bfa' }}>· {c.rede.replace('TABELA ', '')}</span>}
-                      {c.preco_base && <span style={{ color: 'var(--primary)', fontWeight: 700 }}>R$ {Number(c.preco_base).toFixed(2)}</span>}
+                      {c.rede && (
+                        <span style={{ color: '#a78bfa', display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
+                          · {c.rede}
+                          {c.preco_base != null && (
+                            <span style={{ color: 'var(--primary)', fontWeight: 700 }}> R${Number(c.preco_base).toFixed(0)}</span>
+                          )}
+                        </span>
+                      )}
                       <span style={{ color: st.color, background: st.bg, padding: '0.1rem 0.5rem', borderRadius: '999px', fontWeight: 700 }}>
                         {st.label}
                       </span>
@@ -394,39 +394,56 @@ export default function CampanhasClient({
                       </div>
                     )}
 
-                    {/* Calculadora de ativação — sempre visível quando expandido */}
-                    <div style={{ background: 'rgba(0,230,118,0.04)', border: '1px solid rgba(0,230,118,0.15)', borderRadius: '12px', padding: '1rem' }}>
-                      <p style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <Calculator className="w-3 h-3" /> Bonificação
+                    {/* ── CONFIGURAR TABELA ── */}
+                    <div style={{ background: 'rgba(0,230,118,0.04)', border: '1px solid rgba(0,230,118,0.15)', borderRadius: '12px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      <p style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.07em', display: 'flex', alignItems: 'center', gap: '0.4rem', margin: 0 }}>
+                        <Calculator className="w-3 h-3" /> Tabela de Preço
                       </p>
 
-                      {/* Tabela */}
-                      <div style={{ marginBottom: '0.6rem' }}>
-                        <label style={labelStyle}>Tabela de Preço</label>
-                        <select value={ativForm.rede} onChange={e => setAtivForm(f => ({ ...f, rede: e.target.value }))}
-                          style={{ ...inputStyle, color: ativForm.rede ? 'var(--foreground)' : 'var(--muted-foreground)' }}>
-                          <option value="">Selecione...</option>
-                          {redes.map(r => <option key={r} value={r}>{r}</option>)}
-                        </select>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                        <div>
+                          <label style={labelStyle}>Tabela de Preço</label>
+                          <select value={ativForm.rede} onChange={e => setAtivForm(f => ({ ...f, rede: e.target.value }))}
+                            style={{ ...inputStyle, color: ativForm.rede ? 'var(--foreground)' : 'var(--muted-foreground)' }}>
+                            <option value="">Selecione...</option>
+                            {redes.map(r => <option key={r} value={r}>{r}</option>)}
+                          </select>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+                          <div>
+                            <label style={labelStyle}>Preço Base (R$)</label>
+                            <input type="text" inputMode="decimal" placeholder="0,00"
+                              value={ativForm.preco} onChange={e => setAtivForm(f => ({ ...f, preco: e.target.value }))}
+                              style={inputStyle}
+                              onFocus={e => (e.target.style.borderColor = 'var(--primary)')}
+                              onBlur={e => (e.target.style.borderColor = 'var(--border)')} />
+                          </div>
+                          <div>
+                            <label style={labelStyle}>Bonificação (%)</label>
+                            <input type="text" inputMode="decimal" placeholder="Ex: 10"
+                              value={ativForm.bonif} onChange={e => setAtivForm(f => ({ ...f, bonif: e.target.value }))}
+                              style={inputStyle}
+                              onFocus={e => (e.target.style.borderColor = 'var(--primary)')}
+                              onBlur={e => (e.target.style.borderColor = 'var(--border)')} />
+                          </div>
+                        </div>
+                        {ativCalc && <TabelaQuantidades preco={ativPreco} bonif={ativBonif} />}
+                        <button
+                          onClick={() => handleAtivar(c)}
+                          disabled={isLoading || !ativValido}
+                          style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
+                            padding: '0.55rem', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700,
+                            border: '1px solid var(--primary)',
+                            background: ativValido ? 'var(--primary)' : 'transparent',
+                            color: ativValido ? '#000' : 'var(--muted-foreground)',
+                            cursor: ativValido ? 'pointer' : 'not-allowed',
+                            opacity: isLoading ? 0.5 : 1,
+                          }}>
+                          <Power className="w-3.5 h-3.5" />
+                          {c.ativa ? 'Atualizar Preço' : 'Ativar Campanha'}
+                        </button>
                       </div>
-
-                      <div style={{ marginBottom: '0.6rem' }}>
-                        <label style={labelStyle}>Preço Base (R$)</label>
-                        <input type="text" inputMode="decimal" placeholder="0,00"
-                          value={ativForm.preco} onChange={e => setAtivForm(f => ({ ...f, preco: e.target.value }))}
-                          style={inputStyle}
-                          onFocus={e => (e.target.style.borderColor = 'var(--primary)')}
-                          onBlur={e => (e.target.style.borderColor = 'var(--border)')} />
-                      </div>
-                      <div style={{ marginBottom: '0.6rem' }}>
-                        <label style={labelStyle}>Bonificação (%)</label>
-                        <input type="text" inputMode="decimal" placeholder="Ex: 10"
-                          value={ativForm.bonif} onChange={e => setAtivForm(f => ({ ...f, bonif: e.target.value }))}
-                          style={inputStyle}
-                          onFocus={e => (e.target.style.borderColor = 'var(--primary)')}
-                          onBlur={e => (e.target.style.borderColor = 'var(--border)')} />
-                      </div>
-                      {ativCalc && <TabelaQuantidades preco={parseFloat(ativForm.preco.replace(',', '.'))} bonif={parseFloat(ativForm.bonif.replace(',', '.'))} />}
                     </div>
 
                     {/* Ações */}
@@ -443,17 +460,17 @@ export default function CampanhasClient({
                         </Link>
                       )}
 
-                      <button onClick={() => handleAtivar(c)} disabled={isLoading || !ativValido}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: '0.4rem',
-                          padding: '0.45rem 0.9rem', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700,
-                          border: '1px solid var(--primary)', background: ativValido ? 'var(--primary)' : 'transparent',
-                          color: ativValido ? '#000' : 'var(--muted-foreground)',
-                          cursor: ativValido ? 'pointer' : 'not-allowed',
-                          opacity: isLoading ? 0.5 : 1,
-                        }}>
-                        <Power className="w-3.5 h-3.5" /> {c.ativa ? 'Atualizar' : 'Ativar Campanha'}
-                      </button>
+                      {!c.ativa && c.rede && (
+                        <button onClick={() => handleReativar(c)} disabled={isLoading}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: '0.4rem',
+                            padding: '0.45rem 0.9rem', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700,
+                            border: '1px solid var(--primary)', background: 'var(--primary)', color: '#000',
+                            cursor: 'pointer', opacity: isLoading ? 0.5 : 1,
+                          }}>
+                          <Power className="w-3.5 h-3.5" /> Reativar
+                        </button>
+                      )}
 
                       {c.ativa && (
                         <button onClick={() => handlePausar(c)} disabled={isLoading}
@@ -486,7 +503,7 @@ export default function CampanhasClient({
                           border: '1px solid #a78bfa', background: 'transparent', color: '#a78bfa',
                           cursor: 'pointer', opacity: isLoading ? 0.5 : 1,
                         }}>
-                        <Plus className="w-3.5 h-3.5" /> Outra tabela
+                        <Plus className="w-3.5 h-3.5" /> Duplicar
                       </button>
 
                       <span style={{ marginLeft: 'auto', fontSize: '0.68rem', color: 'var(--muted-foreground)', display: 'flex', alignItems: 'center' }}>

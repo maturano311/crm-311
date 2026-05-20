@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Users, Route, Search, Target, UserCheck, ClipboardList, AlertTriangle, Calendar, Megaphone } from 'lucide-react';
+import { Users, Route, Search, Target, UserCheck, ClipboardList, AlertTriangle, Calendar, Megaphone, BarChart3 } from 'lucide-react';
 
 interface HomeProps {
   leads: {
@@ -188,6 +188,9 @@ export default function HomeClient({ leads, parceiros, campanhas }: HomeProps) {
           </Link>
           <Link href="/campanhas" className="magnetic-button flex items-center gap-2 bg-[var(--card)] border border-orange-500 text-orange-400 px-4 py-2 rounded-full font-bold hover:bg-orange-500 hover:text-black transition-all text-sm">
             <Megaphone className="w-4 h-4" /> Campanhas
+          </Link>
+          <Link href="/relatorios" className="magnetic-button flex items-center gap-2 bg-[var(--card)] border border-sky-500 text-sky-400 px-4 py-2 rounded-full font-bold hover:bg-sky-500 hover:text-black transition-all text-sm">
+            <BarChart3 className="w-4 h-4" /> Relatórios
           </Link>
         </div>
       </header>

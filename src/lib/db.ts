@@ -15,8 +15,23 @@ if (!global.pgPool) {
       await p.query(`ALTER TABLE campanhas ADD COLUMN IF NOT EXISTS rede TEXT`);
       await p.query(`ALTER TABLE campanhas ADD COLUMN IF NOT EXISTS preco_base NUMERIC(10,2)`);
       await p.query(`ALTER TABLE campanhas ADD COLUMN IF NOT EXISTS bonificacao_pct NUMERIC(5,2)`);
-      // Desativa campanhas sem preço/rede configurados (sugestões não confirmadas)
-      await p.query(`UPDATE campanhas SET ativa = false WHERE rede IS NULL OR preco_base IS NULL OR bonificacao_pct IS NULL`);
+      await p.query(`
+        CREATE TABLE IF NOT EXISTS campanha_precos (
+          id SERIAL PRIMARY KEY,
+          campanha_id INTEGER NOT NULL REFERENCES campanhas(id) ON DELETE CASCADE,
+          rede TEXT NOT NULL,
+          preco_base NUMERIC(10,2) NOT NULL,
+          bonificacao_pct NUMERIC(5,2) NOT NULL,
+          UNIQUE(campanha_id, rede)
+        )
+      `);
+      // Migra dados existentes de campanhas para campanha_precos
+      await p.query(`
+        INSERT INTO campanha_precos (campanha_id, rede, preco_base, bonificacao_pct)
+        SELECT id, rede, preco_base, bonificacao_pct FROM campanhas
+        WHERE rede IS NOT NULL AND preco_base IS NOT NULL AND bonificacao_pct IS NOT NULL
+        ON CONFLICT DO NOTHING
+      `);
     } catch (e) {
       console.error('Migration campanhas:', e);
     }
