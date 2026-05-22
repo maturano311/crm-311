@@ -1,369 +1,500 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import {
-  ArrowLeft, MapPin, Users, CheckCircle, AlertCircle,
-  Clock, CalendarCheck, CalendarX, BarChart3, ArrowUpDown,
-  ChevronUp, ChevronDown, TrendingUp
+  ArrowLeft, BarChart3, ShoppingCart, XCircle, DollarSign,
+  TrendingUp, Percent, Clock, AlertTriangle, Trophy, ShoppingBag,
 } from 'lucide-react';
+import {
+  buscarRelatoriosVendas,
+  type Resumo,
+  type ClienteSemVisita,
+  type ClienteSemCompra,
+  type RankingItem,
+} from '../actions/relatorios';
 
-type Cidade = {
-  cidade: string;
-  total: number;
-  nao_visitado: number;
-  em_andamento: number;
-  clientes: number;
-  alta: number;
-  media: number;
-  baixa: number;
-  sem_agenda: number;
-  com_agenda: number;
-};
+// ── Tipos e constantes ───────────────────────────────────────────────────────
 
-type Kpi = {
-  total_ativos: number;
-  a_prospectar: number;
-  em_andamento: number;
-  clientes: number;
-  alta_ativa: number;
-  media_ativa: number;
-  baixa_ativa: number;
-  sem_agendamento: number;
-  com_agendamento: number;
-};
+type Periodo = '7d' | '30d' | 'mes' | 'tudo';
 
-type SortKey = keyof Cidade;
-type SortDir = 'asc' | 'desc';
+const PERIODOS: { key: Periodo; label: string }[] = [
+  { key: '7d',   label: '7 dias'    },
+  { key: '30d',  label: '30 dias'   },
+  { key: 'mes',  label: 'Este mês'  },
+  { key: 'tudo', label: 'Tudo'      },
+];
 
-export default function RelatoriosClient({ kpi, cidades }: { kpi: Kpi; cidades: Cidade[] }) {
-  const [sortKey, setSortKey] = useState<SortKey>('total');
-  const [sortDir, setSortDir] = useState<SortDir>('desc');
-  const [busca, setBusca] = useState('');
+// ── Formatadores ─────────────────────────────────────────────────────────────
 
-  const handleSort = (key: SortKey) => {
-    if (sortKey === key) {
-      setSortDir(d => d === 'desc' ? 'asc' : 'desc');
-    } else {
-      setSortKey(key);
-      setSortDir('desc');
-    }
-  };
+const fmtBRL = (v: number) =>
+  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
 
-  const cidadesFiltradas = cidades
-    .filter(c => c.cidade.toLowerCase().includes(busca.toLowerCase()))
-    .sort((a, b) => {
-      const av = Number(a[sortKey]) || 0;
-      const bv = Number(b[sortKey]) || 0;
-      return sortDir === 'desc' ? bv - av : av - bv;
+function parseDateParts(iso: string): Date {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+// ── Componente principal ─────────────────────────────────────────────────────
+
+export default function RelatoriosClient({
+  initialResumo,
+  initialSemVisita,
+  initialSemCompra,
+  initialRanking,
+}: {
+  initialResumo:    Resumo | null;
+  initialSemVisita: ClienteSemVisita[];
+  initialSemCompra: ClienteSemCompra[];
+  initialRanking:   RankingItem[];
+}) {
+  const [periodo,    setPeriodo]    = useState<Periodo>('30d');
+  const [resumo,     setResumo]     = useState<Resumo | null>(initialResumo);
+  const [ranking,    setRanking]    = useState<RankingItem[]>(initialRanking);
+  const [isPending,  startTransition] = useTransition();
+
+  // semVisita e semCompra não mudam com o período — usam dados iniciais diretamente
+  const semVisita = initialSemVisita;
+  const semCompra = initialSemCompra;
+
+  const handlePeriodo = (p: Periodo) => {
+    if (p === periodo || isPending) return;
+    setPeriodo(p);
+    startTransition(async () => {
+      const data = await buscarRelatoriosVendas(p);
+      if (data.success) {
+        setResumo(data.resumo);
+        setRanking(data.ranking);
+      }
     });
-
-  const totalAtivos = Number(kpi?.total_ativos || 0);
-  const taxaConversao = totalAtivos > 0
-    ? ((Number(kpi.clientes) / totalAtivos) * 100).toFixed(1)
-    : '0';
-
-  const SortIcon = ({ col }: { col: SortKey }) => {
-    if (sortKey !== col) return <ArrowUpDown className="w-3 h-3 opacity-30" />;
-    return sortDir === 'desc'
-      ? <ChevronDown className="w-3 h-3 text-[var(--primary)]" />
-      : <ChevronUp className="w-3 h-3 text-[var(--primary)]" />;
   };
 
-  const Th = ({ col, label, className = '' }: { col: SortKey; label: string; className?: string }) => (
-    <th
-      className={`px-3 py-3 text-left text-xs font-bold uppercase tracking-wider cursor-pointer select-none hover:text-[var(--primary)] transition-colors whitespace-nowrap ${className}`}
-      onClick={() => handleSort(col)}
-    >
-      <span className="flex items-center gap-1">
-        {label} <SortIcon col={col} />
-      </span>
-    </th>
-  );
-
-  // Barra de progresso
-  const Bar = ({ value, total, color }: { value: number; total: number; color: string }) => {
-    const pct = total > 0 ? Math.round((value / total) * 100) : 0;
-    return (
-      <div className="flex items-center gap-2">
-        <div className="flex-1 h-1.5 bg-[var(--border)] rounded-full overflow-hidden">
-          <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
-        </div>
-        <span className="text-xs text-[var(--muted-foreground)] w-6 text-right">{value}</span>
-      </div>
-    );
-  };
+  const r = resumo;
+  const criticos = semVisita.filter(c => c.dias_sem_visita === null || c.dias_sem_visita >= 30);
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] font-sans">
 
-      {/* Header */}
+      {/* ── Header ─────────────────────────────────────────────────────── */}
       <div className="sticky top-0 z-20 bg-[var(--background)]/90 backdrop-blur-md border-b border-[var(--border)] px-4 py-4">
-        <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-3 flex-wrap">
+
           <div className="flex items-center gap-3">
-            <Link href="/" className="p-2 bg-[var(--card)] border border-[var(--border)] rounded-full hover:bg-[var(--secondary)] transition-colors">
+            <Link
+              href="/"
+              className="p-2 bg-[var(--card)] border border-[var(--border)] rounded-full hover:bg-[var(--secondary)] transition-colors"
+            >
               <ArrowLeft className="w-5 h-5 text-[var(--primary)]" />
             </Link>
             <div>
               <h1 className="text-xl font-bold flex items-center gap-2">
                 <BarChart3 className="w-5 h-5 text-[var(--primary)]" />
-                Inteligência de Campo
+                Relatórios de Vendas
               </h1>
-              <p className="text-xs text-[var(--muted-foreground)]">Onde ir, quem visitar, o que está parado</p>
+              <p className="text-xs text-[var(--muted-foreground)]">
+                Performance e carteira de parceiros
+              </p>
             </div>
           </div>
-          <Link
-            href="/"
-            className="text-xs font-bold border border-[var(--primary)] text-[var(--primary)] px-4 py-2 rounded-full hover:bg-[var(--primary)] hover:text-black transition-all"
-          >
-            Ver Leads
-          </Link>
+
+          {/* Filtro de período */}
+          <div className="flex gap-1 bg-[var(--card)] border border-[var(--border)] rounded-full p-1">
+            {PERIODOS.map(p => (
+              <button
+                key={p.key}
+                onClick={() => handlePeriodo(p.key)}
+                disabled={isPending}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all disabled:cursor-wait ${
+                  periodo === p.key
+                    ? 'bg-[var(--primary)] text-black'
+                    : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 py-6 space-y-8">
+      {/* ── Conteúdo ───────────────────────────────────────────────────── */}
+      <div
+        className={`max-w-6xl mx-auto px-4 py-6 space-y-8 transition-opacity duration-200 ${
+          isPending ? 'opacity-40 pointer-events-none' : 'opacity-100'
+        }`}
+      >
 
-        {/* KPIs Globais */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-          <KpiCard
-            icon={<Users className="w-5 h-5" />}
-            label="Total Ativos"
-            value={kpi?.total_ativos || 0}
-            sub="na base"
-            color="text-[var(--primary)]"
-          />
-          <KpiCard
-            icon={<AlertCircle className="w-5 h-5" />}
-            label="A Prospectar"
-            value={kpi?.a_prospectar || 0}
-            sub="nunca visitados"
-            color="text-slate-400"
-          />
-          <KpiCard
-            icon={<Clock className="w-5 h-5" />}
-            label="Em Andamento"
-            value={kpi?.em_andamento || 0}
-            sub="já visitados"
-            color="text-amber-400"
-          />
-          <KpiCard
-            icon={<CheckCircle className="w-5 h-5" />}
-            label="Clientes"
-            value={kpi?.clientes || 0}
-            sub={`${taxaConversao}% conv.`}
-            color="text-emerald-400"
-          />
-          <KpiCard
-            icon={<CalendarX className="w-5 h-5" />}
-            label="Sem Agenda"
-            value={kpi?.sem_agendamento || 0}
-            sub="precisam agendamento"
-            color="text-rose-400"
-            className="col-span-2 md:col-span-1"
-          />
-        </div>
-
-        {/* Distribuição de Prioridade */}
-        <div className="glass-panel rounded-2xl p-5">
-          <h2 className="text-sm font-bold text-[var(--muted-foreground)] uppercase tracking-wider mb-4 flex items-center gap-2">
+        {/* ═══ Bloco 1: Resumo do período ════════════════════════════════ */}
+        <section>
+          <h2 className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-wider mb-3 flex items-center gap-2">
             <TrendingUp className="w-4 h-4 text-[var(--primary)]" />
-            Pipeline por Prioridade (leads ativos excluindo clientes)
+            Resumo do período
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <PrioCard
-              label="ALTA"
-              value={Number(kpi?.alta_ativa || 0)}
-              total={totalAtivos}
-              barColor="bg-rose-500"
-              textColor="text-rose-400"
-              badgeBg="bg-rose-500/10"
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
+            <KpiCard
+              icon={<BarChart3 className="w-5 h-5" />}
+              label="Visitas"
+              value={r?.total_visitas ?? 0}
+              sub="total de visitas"
+              color="text-[var(--primary)]"
+              format="number"
             />
-            <PrioCard
-              label="MÉDIA"
-              value={Number(kpi?.media_ativa || 0)}
-              total={totalAtivos}
-              barColor="bg-amber-500"
-              textColor="text-amber-400"
-              badgeBg="bg-amber-500/10"
+            <KpiCard
+              icon={<ShoppingCart className="w-5 h-5" />}
+              label="Pedidos"
+              value={r?.compraram ?? 0}
+              sub="visitas com pedido"
+              color="text-emerald-400"
+              format="number"
             />
-            <PrioCard
-              label="BAIXA"
-              value={Number(kpi?.baixa_ativa || 0)}
-              total={totalAtivos}
-              barColor="bg-emerald-500"
-              textColor="text-emerald-400"
-              badgeBg="bg-emerald-500/10"
+            <KpiCard
+              icon={<XCircle className="w-5 h-5" />}
+              label="Sem pedido"
+              value={r?.nao_compraram ?? 0}
+              sub="visitas sem pedido"
+              color="text-rose-400"
+              format="number"
+            />
+            <KpiCard
+              icon={<DollarSign className="w-5 h-5" />}
+              label="Faturamento"
+              value={r?.faturamento_total ?? 0}
+              sub="receita total"
+              color="text-emerald-400"
+              format="currency"
+            />
+            <KpiCard
+              icon={<TrendingUp className="w-5 h-5" />}
+              label="Ticket médio"
+              value={r?.ticket_medio ?? 0}
+              sub="por pedido"
+              color="text-amber-400"
+              format="currency"
+            />
+            <KpiCard
+              icon={<Percent className="w-5 h-5" />}
+              label="Conversão"
+              value={r?.taxa_conversao ?? 0}
+              sub="das visitas compraram"
+              color="text-[var(--primary)]"
+              format="percent"
             />
           </div>
-        </div>
+        </section>
 
-        {/* Tabela por Cidade */}
-        <div className="glass-panel rounded-2xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-[var(--border)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <h2 className="text-sm font-bold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-[var(--primary)]" />
-              Breakdown por Cidade
-              <span className="text-[var(--primary)] normal-case font-normal">({cidadesFiltradas.length} cidades)</span>
-            </h2>
-            <input
-              type="text"
-              placeholder="Filtrar cidade..."
-              value={busca}
-              onChange={e => setBusca(e.target.value)}
-              className="bg-[var(--background)] border border-[var(--border)] rounded-full px-4 py-1.5 text-sm focus:outline-none focus:border-[var(--primary)] w-full sm:w-48"
-            />
-          </div>
+        {/* ═══ Bloco 2: Clientes sem visita 14+ dias ═════════════════════ */}
+        <section>
+          <div className="glass-panel rounded-2xl overflow-hidden">
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-[var(--secondary)]/30 text-[var(--muted-foreground)]">
-                <tr>
-                  <Th col="cidade" label="Cidade" />
-                  <Th col="total" label="Total" />
-                  <Th col="nao_visitado" label="Não Visitado" />
-                  <Th col="em_andamento" label="Em Andamento" />
-                  <Th col="clientes" label="Clientes" />
-                  <Th col="alta" label="🔴 Alta" />
-                  <Th col="media" label="🟡 Média" />
-                  <Th col="sem_agenda" label="Sem Agenda" />
-                  <Th col="com_agenda" label="Com Agenda" />
-                  <th className="px-3 py-3 text-xs font-bold uppercase tracking-wider text-left">Conv.</th>
-                  <th className="px-3 py-3"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--border)]">
-                {cidadesFiltradas.map((c, idx) => {
-                  const conv = c.total > 0 ? Math.round((c.clientes / c.total) * 100) : 0;
-                  const urgente = c.alta > 0 && c.nao_visitado > 0;
-                  return (
-                    <tr
-                      key={c.cidade}
-                      className={`hover:bg-[var(--secondary)]/20 transition-colors ${idx % 2 === 0 ? '' : 'bg-[var(--card)]/30'}`}
-                    >
-                      <td className="px-3 py-3 font-bold whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          {urgente && <span className="w-2 h-2 rounded-full bg-rose-500 flex-shrink-0" title="Alta prioridade sem visita" />}
-                          {c.cidade}
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 font-bold text-[var(--foreground)]">{c.total}</td>
-                      <td className="px-3 py-3">
-                        <span className={`font-bold ${c.nao_visitado > 0 ? 'text-slate-300' : 'text-[var(--muted-foreground)]'}`}>
-                          {c.nao_visitado}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3">
-                        <span className={`font-bold ${c.em_andamento > 0 ? 'text-amber-400' : 'text-[var(--muted-foreground)]'}`}>
-                          {c.em_andamento}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3">
-                        <span className={`font-bold ${c.clientes > 0 ? 'text-emerald-400' : 'text-[var(--muted-foreground)]'}`}>
-                          {c.clientes}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3">
-                        <span className={`font-bold ${c.alta > 0 ? 'text-rose-400' : 'text-[var(--muted-foreground)]'}`}>
-                          {c.alta}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3">
-                        <span className={`${c.media > 0 ? 'text-amber-300' : 'text-[var(--muted-foreground)]'}`}>
-                          {c.media}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3">
-                        <span className={`font-bold ${c.sem_agenda > 0 ? 'text-rose-300' : 'text-[var(--muted-foreground)]'}`}>
-                          {c.sem_agenda}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3">
-                        <span className={`${c.com_agenda > 0 ? 'text-emerald-300' : 'text-[var(--muted-foreground)]'}`}>
-                          {c.com_agenda}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3">
-                        {/* Barra de conversão */}
-                        <div className="flex items-center gap-2 min-w-[80px]">
-                          <div className="flex-1 h-1.5 bg-[var(--border)] rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full transition-all ${conv >= 30 ? 'bg-emerald-500' : conv >= 10 ? 'bg-amber-500' : 'bg-slate-600'}`}
-                              style={{ width: `${conv}%` }}
-                            />
-                          </div>
-                          <span className="text-xs text-[var(--muted-foreground)] w-8 text-right">{conv}%</span>
-                        </div>
-                      </td>
-                      <td className="px-3 py-3">
-                        <Link
-                          href={`/?cidade=${encodeURIComponent(c.cidade)}`}
-                          className="text-xs text-[var(--primary)] hover:underline font-bold whitespace-nowrap"
-                        >
-                          Ver →
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <div className="px-5 py-4 border-b border-[var(--border)] flex items-center justify-between gap-3 flex-wrap">
+              <h2 className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center gap-2">
+                <Clock className="w-4 h-4 text-[var(--primary)]" />
+                Clientes sem visita há 14+ dias
+                <span className="text-[var(--primary)] normal-case font-normal">
+                  ({semVisita.length})
+                </span>
+              </h2>
+              {criticos.length > 0 && (
+                <span className="flex items-center gap-1.5 text-xs font-bold text-rose-400">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  {criticos.length} crítico{criticos.length !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
 
-            {cidadesFiltradas.length === 0 && (
-              <div className="text-center py-12 text-[var(--muted-foreground)]">
-                <MapPin className="w-10 h-10 mx-auto mb-3 opacity-20" />
-                <p>Nenhuma cidade encontrada.</p>
+            {semVisita.length === 0 ? (
+              <div className="text-center py-14 text-[var(--muted-foreground)]">
+                <Clock className="w-10 h-10 mx-auto mb-3 opacity-20" />
+                <p className="text-sm">Todos os parceiros foram visitados recentemente.</p>
               </div>
+            ) : (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-[var(--secondary)]/30 text-[var(--muted-foreground)]">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Parceiro</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Bairro</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Última visita</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Dias sem visita</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--border)]">
+                      {semVisita.map((c, idx) => {
+                        const critico = c.dias_sem_visita === null || c.dias_sem_visita >= 30;
+                        return (
+                          <tr
+                            key={c.id}
+                            className={`transition-colors ${
+                              critico
+                                ? 'bg-rose-500/5 hover:bg-rose-500/10'
+                                : idx % 2 === 0
+                                  ? 'hover:bg-[var(--secondary)]/20'
+                                  : 'bg-[var(--card)]/30 hover:bg-[var(--secondary)]/20'
+                            }`}
+                          >
+                            <td className="px-4 py-3 font-bold">
+                              <span className="flex items-center gap-2">
+                                {critico && (
+                                  <span className="w-2 h-2 rounded-full bg-rose-500 flex-shrink-0" />
+                                )}
+                                {c.nome_fantasia}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-[var(--muted-foreground)]">
+                              {c.bairro || '—'}
+                            </td>
+                            <td className="px-4 py-3 text-[var(--muted-foreground)]">
+                              {c.ultima_visita
+                                ? parseDateParts(c.ultima_visita).toLocaleDateString('pt-BR')
+                                : <span className="font-bold text-rose-400">Nunca visitado</span>
+                              }
+                            </td>
+                            <td className="px-4 py-3">
+                              <DiasBadge dias={c.dias_sem_visita} />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="px-5 py-3 border-t border-[var(--border)] flex flex-wrap gap-4 text-xs text-[var(--muted-foreground)]">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-rose-500" />
+                    Crítico — 30+ dias ou nunca visitado
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-400" />
+                    Atenção — 14 a 29 dias
+                  </span>
+                </div>
+              </>
             )}
           </div>
+        </section>
 
-          {/* Legenda */}
-          <div className="px-5 py-3 border-t border-[var(--border)] flex flex-wrap gap-4 text-xs text-[var(--muted-foreground)]">
-            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-rose-500" /> Alta prioridade sem visita</span>
-            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500" /> Conversão ≥ 30%</span>
-            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-500" /> Conversão 10–29%</span>
-            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-slate-600" /> Conversão &lt; 10%</span>
+        {/* ═══ Bloco 3: Visitados sem compra ════════════════════════════ */}
+        <section>
+          <div className="glass-panel rounded-2xl overflow-hidden">
+
+            <div className="px-5 py-4 border-b border-[var(--border)] flex items-center justify-between gap-3 flex-wrap">
+              <h2 className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center gap-2">
+                <ShoppingBag className="w-4 h-4 text-[var(--primary)]" />
+                Clientes sem compra há 14+ dias
+                <span className="text-[var(--primary)] normal-case font-normal">
+                  ({semCompra.length})
+                </span>
+              </h2>
+              {semCompra.filter(c => c.dias_sem_compra === null || c.dias_sem_compra >= 30).length > 0 && (
+                <span className="flex items-center gap-1.5 text-xs font-bold text-rose-400">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  {semCompra.filter(c => c.dias_sem_compra === null || c.dias_sem_compra >= 30).length} crítico{semCompra.filter(c => c.dias_sem_compra === null || c.dias_sem_compra >= 30).length !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+
+            {semCompra.length === 0 ? (
+              <div className="text-center py-14 text-[var(--muted-foreground)]">
+                <ShoppingBag className="w-10 h-10 mx-auto mb-3 opacity-20" />
+                <p className="text-sm">Todos os parceiros visitados compraram recentemente.</p>
+              </div>
+            ) : (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-[var(--secondary)]/30 text-[var(--muted-foreground)]">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Parceiro</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Bairro</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Última compra</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Dias sem compra</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--border)]">
+                      {semCompra.map((c, idx) => {
+                        const critico = c.dias_sem_compra === null || c.dias_sem_compra >= 30;
+                        return (
+                          <tr
+                            key={c.id}
+                            className={`transition-colors ${
+                              critico
+                                ? 'bg-rose-500/5 hover:bg-rose-500/10'
+                                : idx % 2 === 0
+                                  ? 'hover:bg-[var(--secondary)]/20'
+                                  : 'bg-[var(--card)]/30 hover:bg-[var(--secondary)]/20'
+                            }`}
+                          >
+                            <td className="px-4 py-3 font-bold">
+                              <span className="flex items-center gap-2">
+                                {critico && (
+                                  <span className="w-2 h-2 rounded-full bg-rose-500 flex-shrink-0" />
+                                )}
+                                {c.nome_fantasia}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-[var(--muted-foreground)]">{c.bairro || '—'}</td>
+                            <td className="px-4 py-3 text-[var(--muted-foreground)]">
+                              {c.ultima_compra
+                                ? parseDateParts(c.ultima_compra).toLocaleDateString('pt-BR')
+                                : <span className="font-bold text-rose-400">Nunca comprou</span>
+                              }
+                            </td>
+                            <td className="px-4 py-3">
+                              <DiasBadge dias={c.dias_sem_compra} />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="px-5 py-3 border-t border-[var(--border)] flex flex-wrap gap-4 text-xs text-[var(--muted-foreground)]">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-rose-500" />
+                    Crítico — 30+ dias ou nunca comprou
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-400" />
+                    Atenção — 14 a 29 dias
+                  </span>
+                </div>
+              </>
+            )}
+
           </div>
-        </div>
+        </section>
+
+        {/* ═══ Bloco 4: Ranking top 15 ═══════════════════════════════════ */}
+        <section>
+          <div className="glass-panel rounded-2xl overflow-hidden">
+
+            <div className="px-5 py-4 border-b border-[var(--border)]">
+              <h2 className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center gap-2">
+                <Trophy className="w-4 h-4 text-[var(--primary)]" />
+                Ranking por faturamento — Top 15
+                <span className="text-[var(--primary)] normal-case font-normal">no período</span>
+              </h2>
+            </div>
+
+            {ranking.length === 0 ? (
+              <div className="text-center py-14 text-[var(--muted-foreground)]">
+                <Trophy className="w-10 h-10 mx-auto mb-3 opacity-20" />
+                <p className="text-sm">Nenhuma venda registrada no período.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-[var(--secondary)]/30 text-[var(--muted-foreground)]">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider w-12">#</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Parceiro</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Bairro</th>
+                      <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">Visitas</th>
+                      <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">Pedidos</th>
+                      <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">Faturamento</th>
+                      <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">Ticket médio</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--border)]">
+                    {ranking.map((item, idx) => (
+                      <tr
+                        key={`${item.nome_fantasia}-${item.posicao}`}
+                        className={`transition-colors hover:bg-[var(--secondary)]/20 ${
+                          idx % 2 === 0 ? '' : 'bg-[var(--card)]/30'
+                        }`}
+                      >
+                        <td className="px-4 py-3 text-center">
+                          <MedalIcon pos={item.posicao} />
+                        </td>
+                        <td className="px-4 py-3 font-bold">{item.nome_fantasia}</td>
+                        <td className="px-4 py-3 text-[var(--muted-foreground)]">
+                          {item.bairro || '—'}
+                        </td>
+                        <td className="px-4 py-3 text-right text-[var(--muted-foreground)]">
+                          {item.total_visitas}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <span className="font-bold text-emerald-400">{item.total_compras}</span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <span className="font-bold text-[var(--primary)]">
+                            {fmtBRL(item.faturamento_total)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right text-[var(--muted-foreground)]">
+                          {fmtBRL(item.ticket_medio)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+          </div>
+        </section>
 
       </div>
     </div>
   );
 }
 
+// ── Sub-componentes ──────────────────────────────────────────────────────────
+
 function KpiCard({
-  icon, label, value, sub, color, className = ''
+  icon, label, value, sub, color, format, className = '',
 }: {
-  icon: React.ReactNode; label: string; value: number; sub: string; color: string; className?: string;
+  icon: React.ReactNode;
+  label: string;
+  value: number;
+  sub: string;
+  color: string;
+  format: 'number' | 'currency' | 'percent';
+  className?: string;
 }) {
+  let display: string;
+  if (format === 'currency') {
+    display = fmtBRL(value);
+  } else if (format === 'percent') {
+    display = `${value.toFixed(1)}%`;
+  } else {
+    display = String(value);
+  }
+
   return (
     <div className={`glass-panel rounded-2xl p-4 space-y-1 ${className}`}>
       <div className={`flex items-center gap-2 ${color}`}>
         {icon}
-        <span className="text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">{label}</span>
+        <span className="text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+          {label}
+        </span>
       </div>
-      <p className="text-3xl font-bold">{value}</p>
+      <p className={`font-bold leading-tight ${format === 'currency' ? 'text-lg' : 'text-3xl'}`}>
+        {display}
+      </p>
       <p className="text-xs text-[var(--muted-foreground)]">{sub}</p>
     </div>
   );
 }
 
-function PrioCard({
-  label, value, total, barColor, textColor, badgeBg
-}: {
-  label: string; value: number; total: number;
-  barColor: string; textColor: string; badgeBg: string;
-}) {
-  const pct = total > 0 ? Math.round((value / total) * 100) : 0;
+function DiasBadge({ dias }: { dias: number | null }) {
+  if (dias === null) {
+    return <span className="font-bold text-rose-400">—</span>;
+  }
+  const cor = dias >= 30 ? 'text-rose-400' : 'text-amber-400';
+  return <span className={`font-bold ${cor}`}>{dias}d</span>;
+}
+
+function MedalIcon({ pos }: { pos: number }) {
+  if (pos === 1) return <span className="text-base">🥇</span>;
+  if (pos === 2) return <span className="text-base">🥈</span>;
+  if (pos === 3) return <span className="text-base">🥉</span>;
   return (
-    <div className={`${badgeBg} rounded-xl p-4 space-y-3 border border-[var(--border)]`}>
-      <div className="flex items-center justify-between">
-        <span className={`text-xs font-bold uppercase tracking-wider ${textColor}`}>{label}</span>
-        <span className={`text-2xl font-bold ${textColor}`}>{value}</span>
-      </div>
-      <div className="h-2 bg-[var(--border)] rounded-full overflow-hidden">
-        <div className={`h-full rounded-full ${barColor} transition-all`} style={{ width: `${pct}%` }} />
-      </div>
-      <p className="text-xs text-[var(--muted-foreground)]">{pct}% do total ativo</p>
-    </div>
+    <span className="text-xs font-bold text-[var(--muted-foreground)]">{pos}º</span>
   );
 }
