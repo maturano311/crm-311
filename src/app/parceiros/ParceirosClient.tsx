@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { Users, AlertCircle, MapPin, X, Phone, Search, Eye, Share2, DollarSign, FileText, ChevronLeft, Calendar, ShoppingCart, Navigation, Pencil, RotateCcw, CheckCircle, Route, Target } from 'lucide-react';
+import { Users, AlertCircle, MapPin, X, Phone, Search, Eye, Share2, DollarSign, FileText, ChevronLeft, Calendar, ShoppingCart, Navigation, Pencil, RotateCcw, CheckCircle, Route, Target, Undo2 } from 'lucide-react';
 import { registrarVisita, buscarHistoricoVisitas, atualizarParceiro, toggleAtivoParceiro, marcarParceiroNaCampanha, buscarParticipantesCampanha, buscarRankingRecorrencia, cancelarVisita, registrarDevolucao, buscarLeadsPorBairro, desfazerVisitaParceiro, adicionarParceiroCampanha, removerParceiroDaCampanha } from '../actions/parceiros';
 import { agendarRevisita } from '../actions';
 import Link from 'next/link';
@@ -585,7 +585,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
       </header>
 
       {/* Métricas */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 md:gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-4">
         <MetricCard icon={<Users />} title="Parceiros Ativos" value={localMetricas.total_ativos} />
         <MetricCard icon={<Eye className="text-cyan-400" />} title="Visitados (Mês)" value={localMetricas.visitados_mes} />
         <MetricCard
@@ -607,6 +607,11 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
           title="Ticket Médio (Mês)"
           value={localMetricas.ticket_medio_mes && Number(localMetricas.ticket_medio_mes) > 0 ? `R$ ${Number(localMetricas.ticket_medio_mes).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'R$ —'}
           subtitle={localMetricas.ticket_medio_geral && Number(localMetricas.ticket_medio_geral) > 0 ? `Geral: R$ ${Number(localMetricas.ticket_medio_geral).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'Registre valores nas visitas'}
+        />
+        <MetricCard
+          icon={<Undo2 className="text-amber-400" />}
+          title="Devolvido (Mês)"
+          value={localMetricas.total_devolvido_mes && Number(localMetricas.total_devolvido_mes) > 0 ? `R$ ${Number(localMetricas.total_devolvido_mes).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'R$ —'}
         />
       </div>
 
