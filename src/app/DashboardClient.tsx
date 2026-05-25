@@ -466,12 +466,16 @@ export default function DashboardClient({ clientes, metricas, prazos = [], redes
               <p className="text-center text-[var(--muted-foreground)] py-8">Nenhum cliente encontrado nessa visão.</p>
             ) : (
               clientesFiltrados.map(cliente => (
-                <div key={cliente.id} className={`relative glass-panel stagger-item rounded-[var(--radius-md)] p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-colors overflow-hidden ${activeTab === 'Descartados' ? 'opacity-60 hover:opacity-80' : 'ag-card hover:border-[var(--primary)]/50'}`}>
-                  
-                  {/* Cor Lateral Magnética */}
-                  <div className={`absolute left-0 top-0 bottom-0 w-1 ${activeTab === 'Descartados' ? 'bg-slate-600' : cliente.prioridade === 'ALTA' ? 'bg-rose-500' : cliente.prioridade === 'BAIXA' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                <div
+                  key={cliente.id}
+                  className={`relative glass-panel stagger-item rounded-[var(--radius-md)] p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-colors overflow-hidden ${activeTab === 'Descartados' ? 'opacity-60 hover:opacity-80' : 'ag-card hover:border-[var(--primary)]/50'} ${activeTab === 'Hoje' ? 'cursor-pointer' : ''}`}
+                  onClick={activeTab === 'Hoje' ? () => setSelectedCliente(cliente) : undefined}
+                >
 
-                  <div className="flex-1 cursor-pointer pl-3" onClick={() => setSelectedCliente(cliente)}>
+                  {/* Cor Lateral Magnética */}
+                  <div className={`absolute left-0 top-0 bottom-0 w-1 ${activeTab === 'Descartados' ? 'bg-slate-600' : activeTab === 'Hoje' ? 'bg-emerald-500' : cliente.prioridade === 'ALTA' ? 'bg-rose-500' : cliente.prioridade === 'BAIXA' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+
+                  <div className={`flex-1 pl-3 ${activeTab !== 'Hoje' ? 'cursor-pointer' : ''}`} onClick={activeTab !== 'Hoje' ? () => setSelectedCliente(cliente) : undefined}>
                     <h3 className="font-bold text-lg hover:text-[var(--primary)] transition-colors">{cliente.nome_fantasia}</h3>
                     <p className="text-sm text-[var(--muted-foreground)] flex items-center gap-1 mt-1">
                       <MapPin className="w-3 h-3" /> {cliente.bairro || 'Sem Bairro'}, {cliente.cidade || 'Sem Cidade'}
@@ -488,33 +492,43 @@ export default function DashboardClient({ clientes, metricas, prazos = [], redes
                     </div>
                   </div>
                   
-                  <div className="flex flex-wrap gap-2">
-                    {cliente.status === 'Em Andamento' && (
-                      <button onClick={() => handleStatusChange(cliente.id, 'Cliente')} disabled={loadingId === cliente.id} className="magnetic-button bg-[var(--primary)] text-black px-4 py-2 rounded-[var(--radius-sm)] text-sm font-bold flex items-center gap-2 disabled:opacity-50">
-                        Fechou
+                  <div className="flex flex-wrap gap-2" onClick={e => e.stopPropagation()}>
+                    {activeTab === 'Hoje' ? (
+                      <button
+                        onClick={() => setSelectedCliente(cliente)}
+                        className="magnetic-button flex items-center gap-2 border border-emerald-500/50 text-emerald-400 bg-emerald-500/10 px-4 py-2 rounded-[var(--radius-sm)] text-sm font-bold hover:bg-emerald-500/20 transition-colors"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" /> Ver / Editar
                       </button>
+                    ) : (
+                      <>
+                        {cliente.status === 'Em Andamento' && (
+                          <button onClick={() => handleStatusChange(cliente.id, 'Cliente')} disabled={loadingId === cliente.id} className="magnetic-button bg-[var(--primary)] text-black px-4 py-2 rounded-[var(--radius-sm)] text-sm font-bold flex items-center gap-2 disabled:opacity-50">
+                            Fechou
+                          </button>
+                        )}
+                        {cliente.tipo_entrada === 'A PROSPECTAR' && (
+                          <button onClick={() => handleMarcarVisita(cliente.id)} disabled={loadingId === cliente.id} className="magnetic-button border border-[var(--border)] bg-transparent px-4 py-2 rounded-[var(--radius-sm)] text-sm font-bold hover:bg-[var(--secondary)] disabled:opacity-50">
+                            Visitou
+                          </button>
+                        )}
+                        {cliente.tipo_entrada !== 'CLIENTE_BASE' && (
+                          <button onClick={() => handleClienteBase(cliente.id)} disabled={loadingId === cliente.id} className="magnetic-button border border-[var(--border)] text-[var(--muted-foreground)] bg-transparent px-4 py-2 rounded-[var(--radius-sm)] text-sm font-bold hover:bg-[var(--border)] disabled:opacity-50" title="Marcar como cliente antigo (não conta como conversão)">
+                            Já era cliente
+                          </button>
+                        )}
+                        <button
+                          onClick={() => { setAgendandoId(agendandoId === cliente.id ? null : cliente.id); setAgendandoData(''); }}
+                          className={`magnetic-button border px-4 py-2 rounded-[var(--radius-sm)] text-sm font-bold transition-colors ${
+                            agendandoId === cliente.id
+                              ? 'border-amber-500 text-amber-400 bg-amber-500/10'
+                              : 'border-[var(--border)] bg-transparent hover:border-amber-500 hover:text-amber-400'
+                          }`}
+                        >
+                          📅 Agendar
+                        </button>
+                      </>
                     )}
-                    {cliente.tipo_entrada === 'A PROSPECTAR' && (
-                      <button onClick={() => handleMarcarVisita(cliente.id)} disabled={loadingId === cliente.id} className="magnetic-button border border-[var(--border)] bg-transparent px-4 py-2 rounded-[var(--radius-sm)] text-sm font-bold hover:bg-[var(--secondary)] disabled:opacity-50">
-                        Visitou
-                      </button>
-                    )}
-                    {cliente.tipo_entrada !== 'CLIENTE_BASE' && (
-                      <button onClick={() => handleClienteBase(cliente.id)} disabled={loadingId === cliente.id} className="magnetic-button border border-[var(--border)] text-[var(--muted-foreground)] bg-transparent px-4 py-2 rounded-[var(--radius-sm)] text-sm font-bold hover:bg-[var(--border)] disabled:opacity-50" title="Marcar como cliente antigo (não conta como conversão)">
-                        Já era cliente
-                      </button>
-                    )}
-                    {/* Botão Agendar Visita rápido */}
-                    <button
-                      onClick={() => { setAgendandoId(agendandoId === cliente.id ? null : cliente.id); setAgendandoData(''); }}
-                      className={`magnetic-button border px-4 py-2 rounded-[var(--radius-sm)] text-sm font-bold transition-colors ${
-                        agendandoId === cliente.id
-                          ? 'border-amber-500 text-amber-400 bg-amber-500/10'
-                          : 'border-[var(--border)] bg-transparent hover:border-amber-500 hover:text-amber-400'
-                      }`}
-                    >
-                      📅 Agendar
-                    </button>
                   </div>
 
                   {/* Mini-picker de agendamento rápido */}
