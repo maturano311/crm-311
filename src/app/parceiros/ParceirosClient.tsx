@@ -1744,7 +1744,10 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
                                     </span>
                                   )}
                                   {!v.data_devolucao && v.valor_devolvido == null && !v.motivo_devolucao && (
-                                    <span className="text-[10px] text-[var(--muted-foreground)] italic">Sem detalhes — use ↩ Devolver para registrar</span>
+                                    <button
+                                      onClick={() => abrirDevolucaoModal(v, selectedParceiro)}
+                                      className="text-[10px] font-bold px-2 py-0.5 rounded border border-rose-500/40 text-rose-400 hover:bg-rose-500/20 transition-all"
+                                    >↩ Registrar detalhes</button>
                                   )}
                                 </div>
                                 {v.motivo_devolucao && (
