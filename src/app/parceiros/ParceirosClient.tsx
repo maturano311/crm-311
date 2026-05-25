@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { Users, AlertCircle, MapPin, X, Phone, Search, Eye, Share2, DollarSign, FileText, ChevronLeft, Calendar, ShoppingCart, Navigation, Pencil, RotateCcw, CheckCircle, Route, Target } from 'lucide-react';
-import { registrarVisita, buscarHistoricoVisitas, atualizarParceiro, toggleAtivoParceiro, marcarParceiroNaCampanha, buscarParticipantesCampanha, buscarRankingRecorrencia, cancelarVisita, buscarLeadsPorBairro, desfazerVisitaParceiro, adicionarParceiroCampanha, removerParceiroDaCampanha } from '../actions/parceiros';
+import { registrarVisita, buscarHistoricoVisitas, atualizarParceiro, toggleAtivoParceiro, marcarParceiroNaCampanha, buscarParticipantesCampanha, buscarRankingRecorrencia, cancelarVisita, registrarDevolucao, buscarLeadsPorBairro, desfazerVisitaParceiro, adicionarParceiroCampanha, removerParceiroDaCampanha } from '../actions/parceiros';
 import { agendarRevisita } from '../actions';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
@@ -176,6 +176,42 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
   // Mini-perfil do lead próximo
   const [leadModal, setLeadModal] = useState<any | null>(null);
   const [agendandoLeadHoje, setAgendandoLeadHoje] = useState(false);
+
+  // Modal de devolução
+  const [devolucaoModal, setDevolucaoModal] = useState<{ visita: any; parceiro: any } | null>(null);
+  const [devolucaoForm, setDevolucaoForm] = useState({ valor: '', data: '', motivo: '' });
+  const [salvandoDevolucao, setSalvandoDevolucao] = useState(false);
+
+  const abrirDevolucaoModal = (visita: any, parceiro: any) => {
+    setDevolucaoModal({ visita, parceiro });
+    setDevolucaoForm({
+      valor: visita.valor_pedido ? String(Number(visita.valor_pedido).toFixed(2)).replace('.', ',') : '',
+      data: new Date().toISOString().split('T')[0],
+      motivo: '',
+    });
+  };
+
+  const confirmarDevolucao = async () => {
+    if (!devolucaoModal) return;
+    setSalvandoDevolucao(true);
+    const valorNum = devolucaoForm.valor ? parseFloat(devolucaoForm.valor.replace(',', '.')) : null;
+    const res = await registrarDevolucao(devolucaoModal.visita.id, {
+      valor_devolvido: valorNum && !isNaN(valorNum) ? valorNum : null,
+      data_devolucao: devolucaoForm.data,
+      motivo_devolucao: devolucaoForm.motivo || null,
+    });
+    if (res.success) {
+      setHistoricoVisitas(prev => prev.map(v =>
+        v.id === devolucaoModal.visita.id
+          ? { ...v, status: 'devolvido', valor_devolvido: valorNum, data_devolucao: devolucaoForm.data, motivo_devolucao: devolucaoForm.motivo }
+          : v
+      ));
+      setDevolucaoModal(null);
+    } else {
+      alert('Erro ao registrar devolução.');
+    }
+    setSalvandoDevolucao(false);
+  };
 
   const abrirRankingModal = async () => {
     setRankingModal(true);
@@ -1641,29 +1677,77 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
                 ) : historicoVisitas.length === 0 ? (
                   <p className="text-sm italic text-[var(--muted-foreground)]">Nenhuma visita registrada ainda.</p>
                 ) : (
-                  <div className="space-y-2 max-h-[200px] overflow-y-auto custom-scrollbar">
+                  <div className="space-y-2 max-h-[260px] overflow-y-auto custom-scrollbar">
                     {historicoVisitas.map((v: any) => {
-                      const cancelado = v.status === 'cancelado' || v.status === 'devolvido';
+                      const cancelado = v.status === 'cancelado';
+                      const devolvido = v.status === 'devolvido';
                       return (
-                        <div key={v.id} className={`flex items-start gap-3 border-l-2 pl-3 py-1 ${cancelado ? 'border-rose-500/30 opacity-50' : 'border-[var(--border)]'}`}>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className={`text-xs font-bold ${cancelado ? 'line-through text-[var(--muted-foreground)]' : ''}`}>{new Date(v.data_visita).toLocaleDateString('pt-BR')}</span>
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
-                                v.tipo_visita === 'FISICO' ? 'bg-cyan-500/20 text-cyan-400' :
-                                v.tipo_visita === 'TELEFONE' ? 'bg-violet-500/20 text-violet-400' :
-                                'bg-emerald-500/20 text-emerald-400'
-                              }`}>{v.tipo_visita}</span>
-                              {v.comprou && !cancelado && <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded font-bold">COMPROU ✓</span>}
-                              {v.valor_pedido && <span className={`text-[10px] font-bold ${cancelado ? 'line-through text-[var(--muted-foreground)]' : 'text-emerald-400'}`}>R$ {Number(v.valor_pedido).toFixed(2)}</span>}
-                              {cancelado && <span className="text-[10px] bg-rose-500/20 text-rose-400 px-1.5 py-0.5 rounded font-bold uppercase">{v.status}</span>}
+                        <div key={v.id} className="space-y-1">
+                          {/* ── Linha da visita / pedido ── */}
+                          <div className={`flex items-start gap-3 border-l-2 pl-3 py-1 ${cancelado ? 'border-rose-500/30 opacity-50' : devolvido ? 'border-amber-500/40' : 'border-[var(--border)]'}`}>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className={`text-xs font-bold ${cancelado ? 'line-through text-[var(--muted-foreground)]' : ''}`}>
+                                  {new Date(v.data_visita).toLocaleDateString('pt-BR')}
+                                </span>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
+                                  v.tipo_visita === 'FISICO' ? 'bg-cyan-500/20 text-cyan-400' :
+                                  v.tipo_visita === 'TELEFONE' ? 'bg-violet-500/20 text-violet-400' :
+                                  'bg-emerald-500/20 text-emerald-400'
+                                }`}>{v.tipo_visita}</span>
+                                {v.comprou && !cancelado && (
+                                  <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded font-bold">COMPROU ✓</span>
+                                )}
+                                {v.valor_pedido && (
+                                  <span className={`text-[10px] font-bold ${cancelado ? 'line-through text-[var(--muted-foreground)]' : devolvido ? 'text-amber-400' : 'text-emerald-400'}`}>
+                                    R$ {Number(v.valor_pedido).toFixed(2)}
+                                  </span>
+                                )}
+                                {cancelado && <span className="text-[10px] bg-rose-500/20 text-rose-400 px-1.5 py-0.5 rounded font-bold">CANCELADO</span>}
+                                {devolvido && <span className="text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded font-bold">DEVOLVIDO</span>}
+                              </div>
+                              {v.observacao && <p className="text-xs text-[var(--muted-foreground)] mt-0.5">{v.observacao}</p>}
                             </div>
-                            {v.observacao && <p className="text-xs text-[var(--muted-foreground)] mt-0.5">{v.observacao}</p>}
+                            {v.comprou && !cancelado && !devolvido && (
+                              <div className="flex gap-1 flex-shrink-0">
+                                <button
+                                  onClick={() => handleCancelarVisita(v.id, 'cancelado')}
+                                  className="text-[10px] px-1.5 py-0.5 rounded border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 transition-all"
+                                  title="Cancelar pedido"
+                                >✕ Cancelar</button>
+                                <button
+                                  onClick={() => abrirDevolucaoModal(v, selectedParceiro)}
+                                  className="text-[10px] px-1.5 py-0.5 rounded border border-rose-500/30 text-rose-400 hover:bg-rose-500/10 transition-all"
+                                  title="Registrar devolução"
+                                >↩ Devolver</button>
+                              </div>
+                            )}
                           </div>
-                          {v.comprou && !cancelado && (
-                            <div className="flex gap-1 flex-shrink-0">
-                              <button onClick={() => handleCancelarVisita(v.id, 'cancelado')} className="text-[10px] px-1.5 py-0.5 rounded border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 transition-all" title="Cancelar pedido">✕ Cancel.</button>
-                              <button onClick={() => handleCancelarVisita(v.id, 'devolvido')} className="text-[10px] px-1.5 py-0.5 rounded border border-rose-500/30 text-rose-400 hover:bg-rose-500/10 transition-all" title="Marcar como devolução">↩ Dev.</button>
+
+                          {/* ── Linha de devolução (entrada separada) ── */}
+                          {devolvido && (
+                            <div className="ml-5 flex items-start gap-2 border-l-2 border-rose-500/40 pl-3 py-1 bg-rose-500/5 rounded-r-lg">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-[10px] font-bold text-rose-400">↩ Devolução</span>
+                                  {v.data_devolucao && (
+                                    <span className="text-[10px] text-[var(--muted-foreground)]">
+                                      {new Date(v.data_devolucao).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
+                                    </span>
+                                  )}
+                                  {v.valor_devolvido != null && (
+                                    <span className="text-[10px] font-bold text-rose-400">
+                                      R$ {Number(v.valor_devolvido).toFixed(2)}
+                                      {v.valor_pedido && Number(v.valor_devolvido) < Number(v.valor_pedido) && (
+                                        <span className="text-[var(--muted-foreground)] font-normal"> (parcial)</span>
+                                      )}
+                                    </span>
+                                  )}
+                                </div>
+                                {v.motivo_devolucao && (
+                                  <p className="text-xs text-[var(--muted-foreground)] mt-0.5 italic">"{v.motivo_devolucao}"</p>
+                                )}
+                              </div>
                             </div>
                           )}
                         </div>
@@ -1766,6 +1850,77 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
                 className="w-full py-2.5 rounded-xl text-sm font-bold border border-[var(--border)] text-[var(--muted-foreground)] hover:border-white hover:text-white transition-all"
               >
                 Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal de Devolução ─────────────────────────────────────── */}
+      {devolucaoModal && (
+        <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-[var(--card)] w-full max-w-md rounded-t-2xl sm:rounded-2xl border border-rose-500/40 shadow-2xl overflow-hidden">
+            <div className="p-5 border-b border-rose-500/20 bg-rose-500/5 flex justify-between items-start">
+              <div>
+                <p className="text-[10px] font-bold text-rose-400 uppercase tracking-wider mb-0.5">↩ Registrar Devolução</p>
+                <h2 className="text-base font-bold leading-tight">{devolucaoModal.parceiro?.nome_fantasia}</h2>
+                {devolucaoModal.visita.valor_pedido && (
+                  <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
+                    Pedido original: <span className="text-emerald-400 font-bold">R$ {Number(devolucaoModal.visita.valor_pedido).toFixed(2)}</span>
+                    {' · '}{new Date(devolucaoModal.visita.data_visita).toLocaleDateString('pt-BR')}
+                  </p>
+                )}
+              </div>
+              <button onClick={() => setDevolucaoModal(null)} className="p-1 hover:bg-[var(--muted)] rounded-full transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-wider">Valor devolvido</label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={devolucaoForm.valor}
+                    onChange={e => setDevolucaoForm(f => ({ ...f, valor: e.target.value }))}
+                    placeholder="Ex: 150,00"
+                    className="w-full mt-1 bg-[var(--background)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm focus:border-rose-400 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-wider">Data da devolução</label>
+                  <input
+                    type="date"
+                    value={devolucaoForm.data}
+                    onChange={e => setDevolucaoForm(f => ({ ...f, data: e.target.value }))}
+                    className="w-full mt-1 bg-[var(--background)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm focus:border-rose-400 outline-none"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-wider">Motivo <span className="normal-case font-normal text-[var(--muted-foreground)]">(obrigatório)</span></label>
+                <textarea
+                  value={devolucaoForm.motivo}
+                  onChange={e => setDevolucaoForm(f => ({ ...f, motivo: e.target.value }))}
+                  placeholder="Ex: Produto com defeito, pedido errado, cliente desistiu..."
+                  rows={3}
+                  className="w-full mt-1 bg-[var(--background)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm focus:border-rose-400 outline-none resize-none"
+                />
+              </div>
+            </div>
+
+            <div className="px-5 pb-5 flex gap-3">
+              <button onClick={() => setDevolucaoModal(null)} className="flex-1 py-3 rounded-xl text-sm font-bold border border-[var(--border)] text-[var(--muted-foreground)] hover:border-white hover:text-white transition-all">
+                Cancelar
+              </button>
+              <button
+                onClick={confirmarDevolucao}
+                disabled={salvandoDevolucao || !devolucaoForm.motivo.trim() || !devolucaoForm.data}
+                className="flex-1 py-3 rounded-xl text-sm font-bold bg-rose-500 text-white hover:bg-rose-600 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {salvandoDevolucao ? 'Salvando...' : '↩ Confirmar Devolução'}
               </button>
             </div>
           </div>

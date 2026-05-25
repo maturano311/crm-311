@@ -106,11 +106,35 @@ export async function buscarHistoricoVisitas(parceiroId: number, limite = 20) {
 }
 
 // ============================================================
-// CANCELAR / DEVOLVER VISITA
+// CANCELAR VISITA
 // ============================================================
 export async function cancelarVisita(visitaId: number, status: 'cancelado' | 'devolvido') {
   try {
     await pool.query('UPDATE visitas_parceiro SET status = $2 WHERE id = $1', [visitaId, status]);
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+// ============================================================
+// REGISTRAR DEVOLUÇÃO
+// ============================================================
+export async function registrarDevolucao(visitaId: number, dados: {
+  valor_devolvido: number | null;
+  data_devolucao: string;
+  motivo_devolucao: string | null;
+}) {
+  try {
+    await pool.query(`
+      UPDATE visitas_parceiro
+      SET
+        status            = 'devolvido',
+        valor_devolvido   = $2,
+        data_devolucao    = $3,
+        motivo_devolucao  = $4
+      WHERE id = $1
+    `, [visitaId, dados.valor_devolvido ?? null, dados.data_devolucao, dados.motivo_devolucao || null]);
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e.message };
