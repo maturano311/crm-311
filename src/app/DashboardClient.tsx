@@ -294,6 +294,12 @@ export default function DashboardClient({ clientes, metricas, prazos = [], redes
       if (activeTab === 'Rota') return c.revisitar != null && c.status !== 'Descartado' && c.status !== 'Cliente';
       if (activeTab === 'Convertidos') return c.status === 'Cliente' && c.tipo_entrada !== 'CLIENTE_BASE';
       if (activeTab === 'Descartados') return c.status === 'Descartado';
+      if (activeTab === 'Hoje') {
+        if (!c.data_visitacao) return false;
+        const hoje = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+        const dv = new Date(c.data_visitacao).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+        return dv === hoje;
+      }
       if (activeTab === 'Todos') return true;
       return true;
     });
@@ -393,6 +399,7 @@ export default function DashboardClient({ clientes, metricas, prazos = [], redes
               { id: 'Prospectar', label: 'A Prospectar' },
               { id: 'Andamento', label: 'Em Andamento' },
               { id: 'Rota', label: 'Rota de Visitas' },
+              { id: 'Hoje', label: `Visitados Hoje (${clientes.filter(c => { if (!c.data_visitacao) return false; const hoje = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }); return new Date(c.data_visitacao).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) === hoje; }).length})`, today: true },
               { id: 'Convertidos', label: 'Convertidos' },
               { id: 'Todos', label: 'Ver Todos' },
               { id: 'Descartados', label: '🗄 Arquivados', archived: true },
@@ -402,10 +409,14 @@ export default function DashboardClient({ clientes, metricas, prazos = [], redes
                 onClick={() => setActiveTab(tab.id)}
                 className={`whitespace-nowrap px-4 py-2 text-sm font-bold border-b-2 transition-colors ${
                   activeTab === tab.id
-                    ? tab.archived
+                    ? (tab as any).archived
                       ? 'border-slate-500 text-slate-400'
-                      : 'border-[var(--primary)] text-[var(--primary)]'
-                    : 'border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+                      : (tab as any).today
+                        ? 'border-emerald-400 text-emerald-400'
+                        : 'border-[var(--primary)] text-[var(--primary)]'
+                    : (tab as any).today
+                      ? 'border-transparent text-emerald-600 hover:text-emerald-400'
+                      : 'border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
                 }`}
               >
                 {tab.label}

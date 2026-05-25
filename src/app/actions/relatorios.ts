@@ -184,3 +184,69 @@ export async function buscarRelatoriosVendas(periodo: string = '30d') {
     };
   }
 }
+
+// ── Visitas do dia ────────────────────────────────────────────────────────────
+
+export type VisitaDoDia = {
+  tipo_registro: 'parceiro' | 'lead';
+  id: number;
+  nome_fantasia: string;
+  tipo_visita: string | null;
+  comprou: boolean | null;
+  valor_pedido: number | null;
+  nota: string | null;
+};
+
+export async function buscarVisitasDoDia(): Promise<{ success: boolean; data: VisitaDoDia[]; error?: string }> {
+  try {
+    const [{ rows: parcRows }, { rows: leadRows }] = await Promise.all([
+      pool.query(`
+        SELECT
+          vp.id,
+          p.nome_fantasia,
+          vp.tipo_visita,
+          vp.comprou,
+          vp.valor_pedido,
+          vp.observacao AS nota
+        FROM visitas_parceiro vp
+        INNER JOIN parceiros p ON p.id = vp.parceiro_id
+        WHERE vp.data_visita = CURRENT_DATE
+        ORDER BY vp.id ASC
+      `),
+      pool.query(`
+        SELECT
+          id,
+          nome_fantasia,
+          observacao_atendimento AS nota
+        FROM clientes
+        WHERE data_visitacao = CURRENT_DATE
+        ORDER BY id ASC
+      `),
+    ]);
+
+    const data: VisitaDoDia[] = [
+      ...parcRows.map((r: any) => ({
+        tipo_registro: 'parceiro' as const,
+        id:            r.id,
+        nome_fantasia: r.nome_fantasia,
+        tipo_visita:   r.tipo_visita,
+        comprou:       r.comprou,
+        valor_pedido:  r.valor_pedido != null ? Number(r.valor_pedido) : null,
+        nota:          r.nota ?? null,
+      })),
+      ...leadRows.map((r: any) => ({
+        tipo_registro: 'lead' as const,
+        id:            r.id,
+        nome_fantasia: r.nome_fantasia,
+        tipo_visita:   null,
+        comprou:       null,
+        valor_pedido:  null,
+        nota:          r.nota ?? null,
+      })),
+    ];
+
+    return { success: true, data };
+  } catch (error: any) {
+    return { success: false, data: [], error: error.message };
+  }
+}

@@ -4,7 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 import { buscarRotaDoDia, confirmarVisitaRota, removerRevisitar, desfazerVisitaRota } from '../actions/rota';
 import { salvarEdicaoCliente, agendarRevisita } from '../actions';
 import { buscarLeadsPorBairro } from '../actions/parceiros';
-import { ArrowLeft, CalendarDays, MapPin, Navigation, Phone, User, CheckCircle, Clock, Trash2, Route, FileText, ChevronDown, ChevronUp, Pencil, X, Save, RotateCcw } from 'lucide-react';
+import { buscarVisitasDoDia, type VisitaDoDia } from '../actions/relatorios';
+import { ArrowLeft, CalendarDays, MapPin, Navigation, Phone, User, CheckCircle, Clock, Trash2, Route, FileText, ChevronDown, ChevronUp, Pencil, X, Save, RotateCcw, XCircle } from 'lucide-react';
 import Link from 'next/link';
 
 // ─── Funções de Otimização de Rota (idênticas ao ParceirosClient) ───────────
@@ -114,9 +115,14 @@ export default function RotaPage() {
   const [leadModal, setLeadModal] = useState<any | null>(null);
   const [agendandoLeadHoje, setAgendandoLeadHoje] = useState(false);
 
+  // Relatório de visitas do dia
+  const [visitasHoje, setVisitasHoje] = useState<VisitaDoDia[]>([]);
+  const [loadingVisitas, setLoadingVisitas] = useState(false);
+
   const abrirEdicao = (c: any) => {
     setEditando(c);
     setEditForm({
+      nome_fantasia: c.nome_fantasia || '',
       nome_contato: c.nome_contato || '',
       telefone: c.telefone || '',
       endereco: c.endereco || '',
@@ -126,7 +132,6 @@ export default function RotaPage() {
       status: c.status || '',
       observacao_atendimento: c.observacao_atendimento || '',
       revisitar: c.revisitar ? new Date(c.revisitar).toISOString().split('T')[0] : '',
-      // campos obrigatórios da action (mantém valores atuais)
       prazo_pagamento: c.prazo_pagamento || '',
       cnpj: c.cnpj || '',
       inscricao_estadual: c.inscricao_estadual || '',
@@ -142,9 +147,15 @@ export default function RotaPage() {
     setSalvandoEdicao(true);
     const res = await salvarEdicaoCliente(editando.id, editForm);
     if (res.success) {
-      const updated = { ...editando, ...editForm };
-      setClientes(prev => prev.map(c => c.id === editando.id ? updated : c));
-      if (rotaOrganizada) setOrdemRota(prev => prev.map(c => c.id === editando.id ? updated : c));
+      const descartado = editForm.status === 'Descartado';
+      if (descartado) {
+        setClientes(prev => prev.filter(c => c.id !== editando.id));
+        if (rotaOrganizada) setOrdemRota(prev => prev.filter(c => c.id !== editando.id));
+      } else {
+        const updated = { ...editando, ...editForm };
+        setClientes(prev => prev.map(c => c.id === editando.id ? updated : c));
+        if (rotaOrganizada) setOrdemRota(prev => prev.map(c => c.id === editando.id ? updated : c));
+      }
       setEditando(null);
     } else {
       alert('Erro ao salvar: ' + res.error);
@@ -152,7 +163,17 @@ export default function RotaPage() {
     setSalvandoEdicao(false);
   };
 
-  useEffect(() => { handleBuscar(today); }, []);
+  useEffect(() => {
+    handleBuscar(today);
+    recarregarVisitasHoje();
+  }, []);
+
+  const recarregarVisitasHoje = async () => {
+    setLoadingVisitas(true);
+    const res = await buscarVisitasDoDia();
+    setVisitasHoje(res.success ? res.data : []);
+    setLoadingVisitas(false);
+  };
 
   // Limpa o timer do undo ao desmontar
   useEffect(() => () => { if (undoTimerRef.current) clearTimeout(undoTimerRef.current); }, []);
@@ -165,12 +186,21 @@ export default function RotaPage() {
     }
     setExpandidoId(id);
     setLeadsProximosRota([]);
-    // Busca leads próximos do mesmo bairro/cidade
     if (cliente?.bairro || cliente?.cidade) {
       const res = await buscarLeadsPorBairro(cliente.cidade || null, cliente.bairro || null);
       if (res.success) {
-        // Exclui o próprio cliente da lista
-        setLeadsProximosRota((res.data || []).filter((l: any) => l.id !== id));
+        let leads = (res.data || []).filter((l: any) => l.id !== id);
+        // Se o card de referência tem coordenadas, ordena por distância real
+        if (cliente.lat && cliente.lng) {
+          const refLat = Number(cliente.lat);
+          const refLng = Number(cliente.lng);
+          leads = leads.sort((a: any, b: any) => {
+            const dA = a.lat && a.lng ? (Number(a.lat) - refLat) ** 2 + (Number(a.lng) - refLng) ** 2 : Infinity;
+            const dB = b.lat && b.lng ? (Number(b.lat) - refLat) ** 2 + (Number(b.lng) - refLng) ** 2 : Infinity;
+            return dA - dB;
+          });
+        }
+        setLeadsProximosRota(leads);
       }
     }
   };
@@ -254,7 +284,7 @@ export default function RotaPage() {
       setClientes(novaLista);
       if (rotaOrganizada) setOrdemRota(prev => prev.filter(c => c.id !== id));
       setExpandidoId(null);
-      // Salva info para desfazer
+      recarregarVisitasHoje();
       if (clienteAnterior) {
         setUltimaConfirmada(clienteAnterior);
         if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
@@ -630,6 +660,78 @@ export default function RotaPage() {
             )}
           </>
         )}
+
+        {/* ── Visitas realizadas hoje ────────────────────────────────── */}
+        {dataSelecionada === today && (
+          <div className="mt-6">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <h2 className="text-sm font-bold flex items-center gap-2 text-[var(--muted-foreground)] uppercase tracking-wider">
+                <CalendarDays className="w-4 h-4 text-[var(--primary)]" />
+                Visitas realizadas hoje
+              </h2>
+              <button
+                onClick={recarregarVisitasHoje}
+                disabled={loadingVisitas}
+                className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-[var(--card)] border border-[var(--border)] hover:border-[var(--primary)] hover:text-[var(--primary)] transition-all disabled:opacity-50"
+              >
+                {loadingVisitas ? '...' : 'Atualizar'}
+              </button>
+            </div>
+
+            {loadingVisitas && (
+              <div className="flex justify-center py-6">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[var(--primary)]" />
+              </div>
+            )}
+
+            {!loadingVisitas && visitasHoje.length === 0 && (
+              <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5 text-center text-[var(--muted-foreground)] text-sm">
+                Nenhuma visita confirmada ainda hoje.
+              </div>
+            )}
+
+            {!loadingVisitas && visitasHoje.length > 0 && (
+              <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl overflow-hidden">
+                <div className="px-4 py-2.5 border-b border-[var(--border)] bg-[var(--secondary)]/30 flex items-center justify-between text-xs text-[var(--muted-foreground)]">
+                  <span className="font-bold">{visitasHoje.length} visita{visitasHoje.length !== 1 ? 's' : ''}</span>
+                  <span>
+                    {visitasHoje.filter(v => v.comprou).length} compra{visitasHoje.filter(v => v.comprou).length !== 1 ? 's' : ''}
+                    {visitasHoje.some(v => v.valor_pedido) && (
+                      <> · {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                        visitasHoje.reduce((s, v) => s + (v.valor_pedido ?? 0), 0)
+                      )}</>
+                    )}
+                  </span>
+                </div>
+                <div className="divide-y divide-[var(--border)]">
+                  {visitasHoje.map((v, i) => (
+                    <div key={`${v.tipo_registro}-${v.id}`} className="flex items-center gap-3 px-4 py-3">
+                      <span className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${
+                        v.tipo_registro === 'parceiro' ? 'bg-[var(--primary)]/20 text-[var(--primary)]' : 'bg-amber-500/20 text-amber-400'
+                      }`}>{i + 1}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold truncate">{v.nome_fantasia}</p>
+                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                          {v.tipo_registro === 'lead' && (
+                            <span className="text-[10px] text-amber-400 font-bold">Lead</span>
+                          )}
+                          {v.tipo_visita && (
+                            <span className="text-[10px] text-[var(--muted-foreground)]">{v.tipo_visita}</span>
+                          )}
+                        </div>
+                      </div>
+                      {v.comprou !== null && (
+                        v.comprou
+                          ? <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                          : <XCircle className="w-4 h-4 text-rose-400 flex-shrink-0" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Modal de Edição */}
@@ -646,6 +748,16 @@ export default function RotaPage() {
               </button>
             </div>
             <div className="p-5 overflow-y-auto space-y-4 flex-1">
+              <div>
+                <label className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-wider">Nome do estabelecimento</label>
+                <input
+                  type="text"
+                  value={editForm.nome_fantasia}
+                  onChange={e => setEditForm((f: any) => ({ ...f, nome_fantasia: e.target.value }))}
+                  className="w-full mt-1 bg-[var(--background)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm focus:border-[var(--primary)] outline-none"
+                  placeholder="Nome do estabelecimento"
+                />
+              </div>
               <div>
                 <p className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-wider mb-2">Status</p>
                 <div className="flex gap-2 flex-wrap">
@@ -697,11 +809,26 @@ export default function RotaPage() {
                 <textarea rows={3} value={editForm.observacao_atendimento} onChange={e => setEditForm((f: any) => ({ ...f, observacao_atendimento: e.target.value }))} className="w-full mt-1 bg-[var(--background)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm focus:border-[var(--primary)] outline-none resize-none" placeholder="Observações..." />
               </div>
             </div>
-            <div className="p-5 border-t border-[var(--border)] flex gap-3">
-              <button onClick={() => setEditando(null)} className="flex-1 py-3 rounded-xl text-sm font-bold border border-[var(--border)] text-[var(--muted-foreground)] hover:border-white hover:text-white transition-all">Cancelar</button>
-              <button onClick={salvarEdicao} disabled={salvandoEdicao} className="flex-1 py-3 rounded-xl text-sm font-bold bg-[var(--primary)] text-black hover:opacity-90 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
-                <Save className="w-4 h-4" />{salvandoEdicao ? 'Salvando...' : 'Salvar'}
-              </button>
+            <div className="p-5 border-t border-[var(--border)] space-y-3">
+              {editForm.status === 'Descartado' && (
+                <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl px-3 py-2.5 text-xs text-rose-400">
+                  ⚠️ Lead será descartado e removido da rota de hoje.
+                </div>
+              )}
+              <div className="flex gap-3">
+                <button onClick={() => setEditando(null)} className="flex-1 py-3 rounded-xl text-sm font-bold border border-[var(--border)] text-[var(--muted-foreground)] hover:border-white hover:text-white transition-all">Cancelar</button>
+                <button
+                  onClick={salvarEdicao}
+                  disabled={salvandoEdicao}
+                  className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2 ${
+                    editForm.status === 'Descartado'
+                      ? 'bg-rose-500 text-white hover:bg-rose-600'
+                      : 'bg-[var(--primary)] text-black hover:opacity-90'
+                  }`}
+                >
+                  <Save className="w-4 h-4" />{salvandoEdicao ? 'Salvando...' : editForm.status === 'Descartado' ? 'Descartar Lead' : 'Salvar'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

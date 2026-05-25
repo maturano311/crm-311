@@ -5,13 +5,16 @@ import Link from 'next/link';
 import {
   ArrowLeft, BarChart3, ShoppingCart, XCircle, DollarSign,
   TrendingUp, Percent, Clock, AlertTriangle, Trophy, ShoppingBag,
+  CalendarDays, CheckCircle, RefreshCw,
 } from 'lucide-react';
 import {
   buscarRelatoriosVendas,
+  buscarVisitasDoDia,
   type Resumo,
   type ClienteSemVisita,
   type ClienteSemCompra,
   type RankingItem,
+  type VisitaDoDia,
 } from '../actions/relatorios';
 
 // ── Tipos e constantes ───────────────────────────────────────────────────────
@@ -52,6 +55,16 @@ export default function RelatoriosClient({
   const [resumo,     setResumo]     = useState<Resumo | null>(initialResumo);
   const [ranking,    setRanking]    = useState<RankingItem[]>(initialRanking);
   const [isPending,  startTransition] = useTransition();
+
+  const [visitasHoje,        setVisitasHoje]        = useState<VisitaDoDia[] | null>(null);
+  const [loadingVisitasHoje, setLoadingVisitasHoje] = useState(false);
+
+  const carregarVisitasHoje = async () => {
+    setLoadingVisitasHoje(true);
+    const res = await buscarVisitasDoDia();
+    setVisitasHoje(res.success ? res.data : []);
+    setLoadingVisitasHoje(false);
+  };
 
   // semVisita e semCompra não mudam com o período — usam dados iniciais diretamente
   const semVisita = initialSemVisita;
@@ -124,6 +137,90 @@ export default function RelatoriosClient({
           isPending ? 'opacity-40 pointer-events-none' : 'opacity-100'
         }`}
       >
+
+        {/* ── Visitas de Hoje ─────────────────────────────────────────── */}
+        <section>
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <h2 className="text-base font-bold flex items-center gap-2">
+              <CalendarDays className="w-4 h-4 text-[var(--primary)]" />
+              Visitas de Hoje
+            </h2>
+            <button
+              onClick={carregarVisitasHoje}
+              disabled={loadingVisitasHoje}
+              className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-[var(--card)] border border-[var(--border)] hover:border-[var(--primary)] hover:text-[var(--primary)] transition-all disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loadingVisitasHoje ? 'animate-spin' : ''}`} />
+              {visitasHoje === null ? 'Carregar' : 'Atualizar'}
+            </button>
+          </div>
+
+          {visitasHoje === null && !loadingVisitasHoje && (
+            <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 text-center text-[var(--muted-foreground)] text-sm">
+              Clique em "Carregar" para ver as visitas realizadas hoje.
+            </div>
+          )}
+
+          {loadingVisitasHoje && (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--primary)]" />
+            </div>
+          )}
+
+          {visitasHoje !== null && !loadingVisitasHoje && visitasHoje.length === 0 && (
+            <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 text-center text-[var(--muted-foreground)] text-sm">
+              Nenhuma visita registrada hoje.
+            </div>
+          )}
+
+          {visitasHoje !== null && !loadingVisitasHoje && visitasHoje.length > 0 && (
+            <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-[var(--border)] bg-[var(--secondary)]/30 flex items-center justify-between">
+                <span className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-wider">
+                  {visitasHoje.length} visita{visitasHoje.length !== 1 ? 's' : ''} hoje
+                </span>
+                <span className="text-xs text-[var(--muted-foreground)]">
+                  {visitasHoje.filter(v => v.comprou).length} compra{visitasHoje.filter(v => v.comprou).length !== 1 ? 's' : ''}
+                  {' · '}
+                  {fmtBRL(visitasHoje.reduce((s, v) => s + (v.valor_pedido ?? 0), 0))}
+                </span>
+              </div>
+              <div className="divide-y divide-[var(--border)]">
+                {visitasHoje.map((v, i) => (
+                  <div key={`${v.tipo_registro}-${v.id}-${i}`} className="flex items-start gap-3 px-4 py-3">
+                    <div className={`mt-0.5 flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-black ${
+                      v.tipo_registro === 'parceiro' ? 'bg-[var(--primary)]/20 text-[var(--primary)]' : 'bg-amber-500/20 text-amber-400'
+                    }`}>
+                      {i + 1}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-sm leading-tight">{v.nome_fantasia}</p>
+                      <div className="flex flex-wrap items-center gap-2 mt-1">
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                          v.tipo_registro === 'parceiro' ? 'bg-[var(--primary)]/10 text-[var(--primary)]' : 'bg-amber-500/10 text-amber-400'
+                        }`}>
+                          {v.tipo_registro === 'parceiro' ? 'Parceiro' : 'Lead'}
+                        </span>
+                        {v.tipo_visita && (
+                          <span className="text-[10px] text-[var(--muted-foreground)]">{v.tipo_visita}</span>
+                        )}
+                        {v.comprou !== null && (
+                          <span className={`flex items-center gap-1 text-[10px] font-bold ${v.comprou ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            {v.comprou ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                            {v.comprou ? `Comprou${v.valor_pedido ? ' · ' + fmtBRL(v.valor_pedido) : ''}` : 'Não comprou'}
+                          </span>
+                        )}
+                      </div>
+                      {v.nota && (
+                        <p className="text-[11px] text-[var(--muted-foreground)] mt-1.5 italic line-clamp-2">{v.nota}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
 
         {/* ═══ Bloco 1: Resumo do período ════════════════════════════════ */}
         <section>

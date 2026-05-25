@@ -36,7 +36,9 @@ export async function buscarRotaDoDia(data: string) {
 
   try {
     const res = await pool.query(`
-      SELECT id, nome_fantasia, endereco, bairro, cidade, status, prioridade, tipo_entrada, google_maps_url, telefone, nome_contato, revisitar, observacao_atendimento, observacao_rota
+      SELECT id, nome_fantasia, endereco, bairro, cidade, status, prioridade, tipo_entrada,
+             google_maps_url, telefone, nome_contato, revisitar, observacao_atendimento,
+             observacao_rota, lat, lng
       FROM clientes
       WHERE revisitar::date = $1::date
       AND status NOT IN ('Descartado', 'Excluído')

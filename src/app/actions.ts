@@ -32,7 +32,8 @@ export async function marcarVisita(id: number) {
   }
 }
 
-export async function salvarEdicaoCliente(id: number, dados: { 
+export async function salvarEdicaoCliente(id: number, dados: {
+  nome_fantasia?: string | null;
   prazo_pagamento: string | null;
   observacao_atendimento: string | null;
   telefone: string | null;
@@ -52,27 +53,29 @@ export async function salvarEdicaoCliente(id: number, dados: {
 }) {
   try {
     await pool.query(`
-      UPDATE clientes 
-      SET 
-        prazo_pagamento = $1, 
-        observacao_atendimento = $2,
-        telefone = $3,
-        nome_contato = $4,
-        revisitar = $5,
-        cnpj = $6,
-        inscricao_estadual = $7,
-        email_xml = $8,
-        email_financeiro = $9,
-        rede = $10,
-        sub_rede = $11,
-        prioridade = $12,
-        endereco = $13,
-        bairro = $14,
-        cidade = $15,
-        status = COALESCE(NULLIF($16, ''), status)
-      WHERE id = $17
+      UPDATE clientes
+      SET
+        nome_fantasia = COALESCE(NULLIF($1, ''), nome_fantasia),
+        prazo_pagamento = $2,
+        observacao_atendimento = $3,
+        telefone = $4,
+        nome_contato = $5,
+        revisitar = $6,
+        cnpj = $7,
+        inscricao_estadual = $8,
+        email_xml = $9,
+        email_financeiro = $10,
+        rede = $11,
+        sub_rede = $12,
+        prioridade = $13,
+        endereco = $14,
+        bairro = $15,
+        cidade = $16,
+        status = COALESCE(NULLIF($17, ''), status)
+      WHERE id = $18
     `, [
-      dados.prazo_pagamento || null, 
+      dados.nome_fantasia || null,
+      dados.prazo_pagamento || null,
       dados.observacao_atendimento || null,
       dados.telefone || null,
       dados.nome_contato || null,

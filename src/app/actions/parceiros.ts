@@ -506,7 +506,7 @@ export async function buscarLeadsPorBairro(cidade: string | null, bairro: string
     if (bairro) {
       // Busca pelo bairro usando ILIKE (ignora case e variações)
       query = `
-        SELECT id, nome_fantasia, endereco, bairro, cidade, status, prioridade, telefone, nome_contato
+        SELECT id, nome_fantasia, endereco, bairro, cidade, status, prioridade, telefone, nome_contato, lat, lng
         FROM clientes
         WHERE bairro ILIKE $1
           AND status NOT IN ('Cliente', 'Descartado', 'Excluído')
@@ -523,7 +523,7 @@ export async function buscarLeadsPorBairro(cidade: string | null, bairro: string
     if (cidade) {
       // Fallback: mesma cidade
       query = `
-        SELECT id, nome_fantasia, endereco, bairro, cidade, status, prioridade, telefone, nome_contato
+        SELECT id, nome_fantasia, endereco, bairro, cidade, status, prioridade, telefone, nome_contato, lat, lng
         FROM clientes
         WHERE cidade ILIKE $1
           AND status NOT IN ('Cliente', 'Descartado', 'Excluído')
