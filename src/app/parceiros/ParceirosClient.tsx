@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { Users, AlertCircle, MapPin, X, Phone, Search, Eye, Share2, DollarSign, FileText, ChevronLeft, Calendar, ShoppingCart, Navigation, Pencil, RotateCcw, CheckCircle, Route, Target, Undo2 } from 'lucide-react';
-import { registrarVisita, buscarHistoricoVisitas, atualizarParceiro, toggleAtivoParceiro, marcarParceiroNaCampanha, buscarParticipantesCampanha, buscarRankingRecorrencia, cancelarVisita, registrarDevolucao, buscarLeadsPorBairro, desfazerVisitaParceiro, adicionarParceiroCampanha, removerParceiroDaCampanha } from '../actions/parceiros';
+import { registrarVisita, buscarHistoricoVisitas, atualizarParceiro, toggleAtivoParceiro, marcarParceiroNaCampanha, buscarParticipantesCampanha, buscarRankingRecorrencia, cancelarVisita, registrarDevolucao, buscarLeadsPorBairro, desfazerVisitaParceiro, adicionarParceiroCampanha, removerParceiroDaCampanha, buscarDevolucoesMes } from '../actions/parceiros';
 import { agendarRevisita } from '../actions';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
@@ -181,6 +181,19 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
   const [devolucaoModal, setDevolucaoModal] = useState<{ visita: any; parceiro: any } | null>(null);
   const [devolucaoForm, setDevolucaoForm] = useState({ valor: '', data: '', motivo: '' });
   const [salvandoDevolucao, setSalvandoDevolucao] = useState(false);
+
+  // Modal listagem devoluções do mês
+  const [devolucoesMesModal, setDevolucoesMesModal] = useState(false);
+  const [devolucoesMes, setDevolucoesMes] = useState<any[]>([]);
+  const [loadingDevolucoes, setLoadingDevolucoes] = useState(false);
+
+  const abrirDevolucoesMes = async () => {
+    setDevolucoesMesModal(true);
+    setLoadingDevolucoes(true);
+    const res = await buscarDevolucoesMes();
+    setDevolucoesMes(res.data || []);
+    setLoadingDevolucoes(false);
+  };
 
   const abrirDevolucaoModal = (visita: any, parceiro: any) => {
     setDevolucaoModal({ visita, parceiro });
@@ -612,6 +625,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
           icon={<Undo2 className="text-amber-400" />}
           title="Devolvido (Mês)"
           value={localMetricas.total_devolvido_mes && Number(localMetricas.total_devolvido_mes) > 0 ? `R$ ${Number(localMetricas.total_devolvido_mes).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'R$ —'}
+          onClick={abrirDevolucoesMes}
         />
       </div>
 
@@ -1933,6 +1947,84 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
               >
                 {salvandoDevolucao ? 'Salvando...' : '↩ Confirmar Devolução'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Devoluções do Mês ── */}
+      {devolucoesMesModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-[var(--card)] w-full max-w-lg rounded-2xl border border-amber-500/40 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="p-5 border-b border-amber-500/20 bg-amber-500/5 flex justify-between items-start flex-shrink-0">
+              <div>
+                <p className="text-[10px] font-bold text-amber-400 uppercase tracking-wider mb-0.5">↩ Devoluções</p>
+                <h2 className="text-base font-bold">
+                  {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                </h2>
+                {!loadingDevolucoes && devolucoesMes.length > 0 && (
+                  <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
+                    {devolucoesMes.length} devolução{devolucoesMes.length !== 1 ? 'ões' : ''} •{' '}
+                    <span className="text-amber-400 font-bold">
+                      R$ {devolucoesMes.reduce((acc, v) => acc + Number(v.valor_devolvido ?? v.valor_pedido ?? 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </p>
+                )}
+              </div>
+              <button onClick={() => setDevolucoesMesModal(false)} className="p-1 hover:bg-[var(--muted)] rounded-full transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Lista */}
+            <div className="overflow-y-auto custom-scrollbar flex-1 divide-y divide-[var(--border)]">
+              {loadingDevolucoes ? (
+                <p className="text-center text-[var(--muted-foreground)] py-10 text-sm">Carregando...</p>
+              ) : devolucoesMes.length === 0 ? (
+                <p className="text-center text-[var(--muted-foreground)] py-10 text-sm">Nenhuma devolução registrada este mês.</p>
+              ) : devolucoesMes.map((v: any) => {
+                const dataDev = v.data_devolucao
+                  ? new Date(v.data_devolucao).toLocaleDateString('pt-BR', { timeZone: 'UTC' })
+                  : new Date(v.data_visita).toLocaleDateString('pt-BR');
+                const valorDev = v.valor_devolvido != null ? Number(v.valor_devolvido) : v.valor_pedido != null ? Number(v.valor_pedido) : null;
+                const isParcial = v.valor_devolvido != null && v.valor_pedido != null && Number(v.valor_devolvido) < Number(v.valor_pedido);
+                return (
+                  <div key={v.id} className="px-5 py-3.5 hover:bg-[var(--secondary)] transition-colors">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold truncate">{v.nome_fantasia}</p>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <span className="text-[10px] text-[var(--muted-foreground)]">↩ {dataDev}</span>
+                          {v.data_devolucao && v.data_visita && (
+                            <span className="text-[10px] text-[var(--muted-foreground)]">
+                              · pedido {new Date(v.data_visita).toLocaleDateString('pt-BR')}
+                            </span>
+                          )}
+                          {isParcial && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30 font-bold">PARCIAL</span>
+                          )}
+                        </div>
+                        {v.motivo_devolucao ? (
+                          <p className="text-xs text-[var(--muted-foreground)] italic mt-1">"{v.motivo_devolucao}"</p>
+                        ) : (
+                          <p className="text-xs text-[var(--muted-foreground)] italic mt-1">Sem motivo registrado</p>
+                        )}
+                      </div>
+                      <div className="flex-shrink-0 text-right">
+                        {valorDev != null ? (
+                          <p className="text-sm font-bold text-amber-400">R$ {valorDev.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                        ) : (
+                          <p className="text-sm text-[var(--muted-foreground)]">—</p>
+                        )}
+                        {isParcial && v.valor_pedido && (
+                          <p className="text-[10px] text-[var(--muted-foreground)] line-through">R$ {Number(v.valor_pedido).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

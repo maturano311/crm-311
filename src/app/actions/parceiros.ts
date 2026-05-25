@@ -576,3 +576,30 @@ export async function desfazerVisitaParceiro(visitaId: number, parceiroId: numbe
     return { success: false, error: e.message };
   }
 }
+
+// ============================================================
+// BUSCAR DEVOLUÇÕES DO MÊS
+// ============================================================
+export async function buscarDevolucoesMes() {
+  try {
+    const res = await pool.query(`
+      SELECT
+        v.id,
+        v.data_visita,
+        v.data_devolucao,
+        v.valor_pedido,
+        v.valor_devolvido,
+        v.motivo_devolucao,
+        p.nome_fantasia,
+        p.id as parceiro_id
+      FROM visitas_parceiro v
+      JOIN parceiros p ON p.id = v.parceiro_id
+      WHERE v.status = 'devolvido'
+        AND COALESCE(v.data_devolucao, v.data_visita::date) >= date_trunc('month', CURRENT_DATE)
+      ORDER BY COALESCE(v.data_devolucao, v.data_visita::date) DESC
+    `);
+    return { success: true, data: res.rows };
+  } catch (e: any) {
+    return { success: false, data: [] };
+  }
+}
