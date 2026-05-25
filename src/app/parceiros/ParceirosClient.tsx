@@ -1726,7 +1726,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
 
                           {/* ── Linha de devolução (entrada separada) ── */}
                           {devolvido && (
-                            <div className="ml-5 flex items-start gap-2 border-l-2 border-rose-500/40 pl-3 py-1 bg-rose-500/5 rounded-r-lg">
+                            <div className="ml-5 flex items-start gap-2 border-l-2 border-rose-500/60 pl-3 py-1.5 bg-rose-500/15 rounded-r-lg">
                               <div className="flex-1">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span className="text-[10px] font-bold text-rose-400">↩ Devolução</span>
@@ -1742,6 +1742,9 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
                                         <span className="text-[var(--muted-foreground)] font-normal"> (parcial)</span>
                                       )}
                                     </span>
+                                  )}
+                                  {!v.data_devolucao && v.valor_devolvido == null && !v.motivo_devolucao && (
+                                    <span className="text-[10px] text-[var(--muted-foreground)] italic">Sem detalhes — use ↩ Devolver para registrar</span>
                                   )}
                                 </div>
                                 {v.motivo_devolucao && (
