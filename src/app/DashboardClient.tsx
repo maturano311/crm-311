@@ -480,10 +480,15 @@ export default function DashboardClient({ clientes, metricas, prazos = [], redes
                     <p className="text-sm text-[var(--muted-foreground)] flex items-center gap-1 mt-1">
                       <MapPin className="w-3 h-3" /> {cliente.bairro || 'Sem Bairro'}, {cliente.cidade || 'Sem Cidade'}
                     </p>
-                    <div className="flex gap-2 mt-2">
+                    <div className="flex gap-2 mt-2 flex-wrap">
                       <span className="text-xs bg-[var(--secondary)] text-[var(--secondary-foreground)] px-2 py-1 rounded-full font-medium">
                         {cliente.status}
                       </span>
+                      {activeTab === 'Andamento' && cliente.data_visitacao && (
+                        <span className="text-xs border border-emerald-500/40 bg-emerald-500/10 text-emerald-400 px-2 py-1 rounded-full font-medium flex items-center gap-1">
+                          <CheckCircle className="w-3 h-3"/> Visitado {new Date(cliente.data_visitacao).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
+                        </span>
+                      )}
                       {cliente.revisitar && (
                         <span className="text-xs border border-[var(--border)] text-[var(--muted-foreground)] px-2 py-1 rounded-full font-medium flex items-center gap-1">
                           <Clock className="w-3 h-3"/> {new Date(cliente.revisitar).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
