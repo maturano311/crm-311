@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\matur\\\\OneDrive\\\\Área de Trabalho\\\\crm-sorvete\" -Depth 2)",
+      "Bash(Select-Object -Property Mode, Name)",
+      "Bash(Format-Table -AutoSize)",
+      "Bash(npm run *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Skill(schedule)",
+      "Skill(schedule:*)",
+      "Bash(ls \"C:\\\\Users\\\\matur\\\\.antigravity\\\\extensions\\\\skills\\\\skills\")",
+      "mcp__Claude_in_Chrome__list_connected_browsers",
+      "WebFetch(domain:www.suasvendas.com)",
+      "PowerShell(Start-Process \"msedge.exe\" -ArgumentList \"http://localhost:3000/relatorios\")"
+    ]
+  }
+}

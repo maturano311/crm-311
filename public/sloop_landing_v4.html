@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sloop Sorvetes — Seja um Parceiro</title>
+<link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700;800&family=Nunito:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --azul: #1B4BAB;
+  --azul-escuro: #0F3080;
+  --azul-medio: #2558C4;
+  --amarelo: #F5A800;
+  --amarelo-claro: #FFF6DC;
+  --amarelo-escuro: #C98C00;
+  --branco: #FFFFFF;
+  --cinza-bg: #F6F8FC;
+  --cinza-borda: #DDE3EE;
+  --texto: #0D1F4A;
+  --texto-muted: #5A6B8A;
+  --radius: 12px;
+  --radius-lg: 20px;
+  --sucesso: #0A7C3E;
+}
+body { font-family: 'Nunito', sans-serif; background: var(--cinza-bg); color: var(--texto); min-height: 100vh; }
+
+.navbar { background: var(--azul); padding: 0.75rem 1.5rem; display: flex; align-items: center; justify-content: center; }
+.navbar-logo { font-family: 'Dancing Script', cursive; font-size: 1.8rem; font-weight: 800; color: var(--amarelo); letter-spacing: -0.5px; }
+.navbar-logo span { color: white; font-size: 0.65rem; display: block; text-align: center; font-family: 'Nunito', sans-serif; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; }
+
+.hero { background: var(--amarelo); padding: 3.5rem 1.5rem 5.5rem; text-align: center; position: relative; overflow: hidden; }
+.hero::before { content: ''; position: absolute; bottom: -2px; left: 0; right: 0; height: 60px; background: var(--cinza-bg); clip-path: ellipse(55% 100% at 50% 100%); }
+.hero-badge { display: inline-block; background: var(--azul); color: white; font-size: 11px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; padding: 6px 18px; border-radius: 100px; margin-bottom: 1.5rem; }
+.hero h1 { font-family: 'Nunito', sans-serif; font-size: clamp(1.85rem, 5vw, 2.9rem); font-weight: 900; color: var(--azul-escuro); line-height: 1.2; margin-bottom: 0.5rem; }
+.hero h1 em { font-family: 'Dancing Script', cursive; font-style: normal; font-size: 1.2em; color: var(--azul); display: block; }
+.hero-sub { font-size: 1rem; font-weight: 500; color: var(--azul-escuro); opacity: 0.8; max-width: 480px; margin: 0.75rem auto 2rem; line-height: 1.65; }
+.pill-regioes { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.pill-regiao { background: rgba(27,75,171,0.12); border: 1px solid rgba(27,75,171,0.25); color: var(--azul-escuro); font-size: 12px; font-weight: 700; padding: 5px 14px; border-radius: 100px; }
+
+.form-wrapper { max-width: 660px; margin: -2.5rem auto 0; padding: 0 1.25rem; position: relative; z-index: 10; }
+.form-section { background: var(--branco); border: 0.5px solid var(--cinza-borda); border-radius: var(--radius-lg); padding: 2rem 1.75rem; box-shadow: 0 12px 40px rgba(27,75,171,0.1); }
+.form-header { display: flex; align-items: center; gap: 12px; margin-bottom: 0.4rem; }
+.form-header-icon { width: 44px; height: 44px; background: var(--amarelo-claro); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+.form-section h2 { font-size: 1.25rem; font-weight: 800; color: var(--texto); }
+.form-section .subtitle { font-size: 0.87rem; color: var(--texto-muted); margin-bottom: 1.75rem; line-height: 1.55; padding-left: 56px; margin-top: -0.2rem; }
+
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 480px) { .form-row { grid-template-columns: 1fr; } }
+
+.form-group { margin-bottom: 12px; display: flex; flex-direction: column; gap: 4px; }
+.form-group label { font-size: 11px; font-weight: 800; color: var(--texto-muted); text-transform: uppercase; letter-spacing: 0.8px; }
+.form-group input, .form-group select { width: 100%; height: 44px; border: 1.5px solid var(--cinza-borda); border-radius: 10px; padding: 0 14px; font-family: 'Nunito', sans-serif; font-size: 0.93rem; font-weight: 600; color: var(--texto); background: var(--cinza-bg); outline: none; transition: border-color 0.15s, background 0.15s; -webkit-appearance: none; }
+.form-group input::placeholder { color: #AAB4C8; font-weight: 500; }
+.form-group input:focus, .form-group select:focus { border-color: var(--azul); background: var(--branco); box-shadow: 0 0 0 3px rgba(27,75,171,0.1); }
+.select-wrapper { position: relative; }
+.select-wrapper::after { content: '▾'; position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--texto-muted); pointer-events: none; font-size: 13px; }
+.select-wrapper select { padding-right: 36px; cursor: pointer; }
+
+.segmentos-label { font-size: 11px; font-weight: 800; color: var(--texto-muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; display: block; }
+.segmentos-grid { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 12px; }
+.seg-pill { border: 1.5px solid var(--cinza-borda); background: var(--cinza-bg); color: var(--texto-muted); font-family: 'Nunito', sans-serif; font-size: 13px; font-weight: 700; padding: 7px 14px; border-radius: 100px; cursor: pointer; transition: all 0.15s; user-select: none; }
+.seg-pill.ativo { background: var(--azul); border-color: var(--azul); color: white; }
+
+.btn-wpp { width: 100%; height: 54px; background: #25D366; color: white; border: none; border-radius: 12px; font-family: 'Nunito', sans-serif; font-size: 1rem; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; transition: background 0.15s, transform 0.1s; margin-top: 6px; }
+.btn-wpp:hover { background: #1eba57; }
+.btn-wpp:active { transform: scale(0.98); }
+.btn-wpp svg { width: 22px; height: 22px; fill: white; flex-shrink: 0; }
+
+.campo-erro { border-color: #E24B4A !important; background: #FFF8F8 !important; }
+.msg-erro { font-size: 11px; color: #E24B4A; margin-top: 2px; font-weight: 600; }
+.privacidade { font-size: 11px; color: var(--texto-muted); text-align: center; margin-top: 10px; line-height: 1.5; font-weight: 500; }
+.sucesso-box { display: none; background: #EDFBF3; border: 1px solid #7FDBA8; border-radius: var(--radius); padding: 1.25rem; text-align: center; margin-top: 1rem; }
+.sucesso-box.visivel { display: block; }
+.sucesso-box p { font-size: 0.95rem; font-weight: 800; color: var(--sucesso); margin-top: 6px; }
+
+.stats-section { max-width: 660px; margin: 2.5rem auto 0; padding: 0 1.25rem; }
+.section-eyebrow { font-size: 11px; font-weight: 800; color: var(--azul); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 0.5rem; display: block; }
+.section-titulo { font-family: 'Nunito', sans-serif; font-size: 1.35rem; font-weight: 900; color: var(--texto); margin-bottom: 0.3rem; }
+.section-titulo em { font-family: 'Dancing Script', cursive; font-style: normal; color: var(--azul); font-size: 1.3em; }
+.section-sub { font-size: 0.88rem; color: var(--texto-muted); font-weight: 500; margin-bottom: 1.25rem; line-height: 1.5; }
+
+.stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.stat-card { background: var(--branco); border: 0.5px solid var(--cinza-borda); border-radius: var(--radius); padding: 1.4rem 0.75rem 1.2rem; text-align: center; border-top: 3px solid var(--amarelo); }
+.stat-n { font-size: 1.85rem; font-weight: 900; color: var(--azul); line-height: 1; margin-bottom: 6px; }
+.stat-desc { font-size: 0.76rem; color: var(--texto-muted); line-height: 1.45; font-weight: 600; }
+
+.bene-section { max-width: 660px; margin: 2rem auto 0; padding: 0 1.25rem; }
+.bene-bloco { background: var(--azul); border-radius: var(--radius-lg); padding: 1.75rem; }
+.bene-bloco-topo { margin-bottom: 1.25rem; }
+.bene-bloco-topo p { font-size: 0.92rem; color: rgba(255,255,255,0.88); line-height: 1.7; font-weight: 500; }
+.bene-bloco-topo p strong { color: var(--amarelo); font-weight: 800; }
+.bene-lista { display: flex; flex-direction: column; gap: 8px; }
+.bene-item { background: var(--azul-medio); border-radius: 10px; padding: 0.85rem 1.1rem; display: flex; align-items: center; gap: 10px; color: white; font-size: 0.88rem; font-weight: 700; line-height: 1.35; }
+.bene-item-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--amarelo); flex-shrink: 0; }
+
+.redes-section { max-width: 660px; margin: 1.75rem auto 0; padding: 0 1.25rem; }
+.redes-card { background: var(--branco); border: 0.5px solid var(--cinza-borda); border-radius: var(--radius-lg); padding: 1.5rem 1.75rem; }
+.redes-card h3 { font-size: 0.95rem; font-weight: 900; color: var(--texto); margin-bottom: 0.4rem; }
+.redes-card p { font-size: 0.85rem; color: var(--texto-muted); font-weight: 500; margin-bottom: 0; line-height: 1.55; }
+.redes-logos { display: flex; flex-wrap: wrap; gap: 8px; }
+.rede-tag { background: var(--amarelo-claro); border: 1px solid #E8C94A; color: var(--amarelo-escuro); font-size: 12px; font-weight: 800; padding: 5px 14px; border-radius: 8px; }
+
+.rep-section { max-width: 660px; margin: 1.75rem auto 0; padding: 0 1.25rem 3rem; }
+.rep-card { background: var(--amarelo); border-radius: var(--radius-lg); padding: 1.75rem; display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap; }
+.rep-avatar { width: 56px; height: 56px; background: var(--azul); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; font-weight: 900; color: var(--amarelo); flex-shrink: 0; }
+.rep-info p:first-child { font-size: 1rem; font-weight: 900; color: var(--azul-escuro); margin-bottom: 3px; }
+.rep-info p:last-child { font-size: 0.83rem; color: var(--azul-escuro); opacity: 0.8; font-weight: 600; line-height: 1.5; }
+
+footer { text-align: center; padding: 1.5rem; font-size: 12px; color: var(--texto-muted); border-top: 0.5px solid var(--cinza-borda); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<nav class="navbar">
+  <div class="navbar-logo">
+    <span>sorvetes</span>Sloop
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="hero-badge">🍦 Parceiro Comercial</div>
+  <h1>Gostaria de ter Sloop<br><em>no seu estabelecimento?</em></h1>
+  <p class="hero-sub">O sorvete preferido do Rio de Janeiro, presente em mais de 2.500 pontos de venda — de bares e mercadinhos às principais redes do estado.</p>
+  <div class="pill-regioes">
+    <span class="pill-regiao">Teresópolis</span>
+    <span class="pill-regiao">Petrópolis</span>
+    <span class="pill-regiao">Areal</span>
+    <span class="pill-regiao">Três Rios</span>
+    <span class="pill-regiao">Paraíba do Sul</span>
+    <span class="pill-regiao">Levy Gasparian</span>
+    <span class="pill-regiao">S. J. do Vale do Rio Preto</span>
+  </div>
+</section>
+
+<div class="form-wrapper">
+  <div class="form-section">
+    <div class="form-header">
+      <div class="form-header-icon">📋</div>
+      <h2>Solicitar proposta comercial</h2>
+    </div>
+    <p class="subtitle">Preencha os dados e nosso representante entra em contato pelo WhatsApp.</p>
+    <div class="form-row">
+      <div class="form-group">
+        <label for="nome">Seu nome</label>
+        <input type="text" id="nome" placeholder="Ex: Carlos Silva" autocomplete="name">
+        <span class="msg-erro" id="erro-nome"></span>
+      </div>
+      <div class="form-group">
+        <label for="telefone">WhatsApp</label>
+        <input type="tel" id="telefone" placeholder="(21) 99999-9999" autocomplete="tel">
+        <span class="msg-erro" id="erro-telefone"></span>
+      </div>
+    </div>
+    <div class="form-group">
+      <label for="estabelecimento">Nome do estabelecimento</label>
+      <input type="text" id="estabelecimento" placeholder="Ex: Mercadinho do João">
+      <span class="msg-erro" id="erro-estabelecimento"></span>
+    </div>
+    <div class="form-group">
+      <label for="cidade">Cidade / Região</label>
+      <div class="select-wrapper">
+        <select id="cidade">
+          <option value="">Selecione sua cidade</option>
+          <option>Teresópolis</option>
+          <option>Petrópolis</option>
+          <option>Areal</option>
+          <option>Três Rios</option>
+          <option>Paraíba do Sul</option>
+          <option>Levy Gasparian</option>
+          <option>São José do Vale do Rio Preto</option>
+        </select>
+      </div>
+      <span class="msg-erro" id="erro-cidade"></span>
+    </div>
+    <span class="segmentos-label">Tipo do estabelecimento</span>
+    <div class="segmentos-grid">
+      <button type="button" class="seg-pill" data-seg="Mercadinho">Mercadinho</button>
+      <button type="button" class="seg-pill" data-seg="Padaria">Padaria</button>
+      <button type="button" class="seg-pill" data-seg="Bar / Boteco">Bar / Boteco</button>
+      <button type="button" class="seg-pill" data-seg="Lanchonete">Lanchonete</button>
+      <button type="button" class="seg-pill" data-seg="Restaurante">Restaurante</button>
+      <button type="button" class="seg-pill" data-seg="Supermercado">Supermercado</button>
+      <button type="button" class="seg-pill" data-seg="Açougue">Açougue</button>
+      <button type="button" class="seg-pill" data-seg="Outro">Outro</button>
+    </div>
+    <span class="msg-erro" id="erro-segmento"></span>
+    <button class="btn-wpp" id="btn-enviar" onclick="enviarWhatsApp()">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+      </svg>
+      Solicitar proposta via WhatsApp
+    </button>
+    <div class="sucesso-box" id="sucesso-box">
+      <span>✅</span>
+      <p>Ótimo! Você será redirecionado ao WhatsApp agora.</p>
+    </div>
+    <p class="privacidade">🔒 Seus dados são usados exclusivamente para contato comercial. Sem spam.</p>
+  </div>
+</div>
+
+<section class="stats-section">
+  <span class="section-eyebrow">Sloop em números</span>
+  <p class="section-titulo">O sorvete do <em>Rio de Janeiro</em></p>
+  <p class="section-sub">Presença consolidada em todo o estado, com logística própria e atendimento dedicado.</p>
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-n">+2.500</div>
+      <div class="stat-desc">pontos de venda ativos no RJ</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-n">+30</div>
+      <div class="stat-desc">caminhões próprios de entrega</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-n">25 anos</div>
+      <div class="stat-desc">de mercado e tradição no RJ</div>
+    </div>
+  </div>
+</section>
+
+<section class="bene-section">
+  <div class="bene-bloco">
+    <div class="bene-bloco-topo">
+      <p style="font-family:'Dancing Script',cursive;font-size:1.6rem;color:var(--amarelo);margin-bottom:0.75rem;">Por que revender Sloop?</p>
+      <p>Leve para o seu negócio o sorvete que o carioca já conhece e pede pelo nome. Ideal para supermercados, bares, restaurantes e conveniências — <strong>com suporte completo e entrega garantida na sua região.</strong></p>
+    </div>
+    <div class="bene-lista">
+      <div class="bene-item"><div class="bene-item-dot"></div>Logística própria com mais de 30 caminhões e entrega semanal</div>
+      <div class="bene-item"><div class="bene-item-dot"></div>Ampla linha de produtos para vários públicos e praças</div>
+      <div class="bene-item"><div class="bene-item-dot"></div>Atendimento e acompanhamento personalizado na sua região</div>
+      <div class="bene-item"><div class="bene-item-dot"></div>Estrutura de produção com capacidade para altas demandas</div>
+      <div class="bene-item"><div class="bene-item-dot"></div>P&D e processos de melhoria constantes nos produtos</div>
+      <div class="bene-item"><div class="bene-item-dot"></div>Freezer por comodato para maior flexibilidade no seu negócio</div>
+      <div class="bene-item"><div class="bene-item-dot"></div>Marca reconhecida e preferida pelos consumidores cariocas</div>
+      <div class="bene-item"><div class="bene-item-dot"></div>Sede em Teresópolis, com água de qualidade na produção</div>
+    </div>
+  </div>
+</section>
+
+
+
+<section class="redes-section">
+  <div class="redes-card">
+    <h3>Presente nas principais redes do estado</h3>
+    <p>A Sloop já conquistou as principais redes de supermercados e atacarejos do Rio de Janeiro. Ofereça aos seus clientes uma marca que eles já conhecem e pedem pelo nome.</p>
+  </div>
+</section>
+
+<section class="rep-section">
+  <div class="rep-card">
+    <div class="rep-avatar">R</div>
+    <div class="rep-info">
+      <p>Representante: Rodrigo</p>
+      <p>Região Serrana e Vale do Paraíba do Sul<br>Sloop Sorvetes</p>
+      <a href="https://wa.me/5521988742831?text=Olá%20Rodrigo!%20Tenho%20uma%20dúvida%20sobre%20a%20parceria%20Sloop." target="_blank" style="display:inline-block;margin-top:10px;background:var(--azul);color:white;font-size:0.82rem;font-weight:800;padding:8px 16px;border-radius:100px;text-decoration:none;">Dúvidas? Fale direto comigo →</a>
+    </div>
+  </div>
+</section>
+
+<footer>© 2025 Sloop Sorvetes · Página de captação de parceiros comerciais</footer>
+
+<script>
+  let segmentoSelecionado = '';
+  document.querySelectorAll('.seg-pill').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.seg-pill').forEach(b => b.classList.remove('ativo'));
+      this.classList.add('ativo');
+      segmentoSelecionado = this.dataset.seg;
+      document.getElementById('erro-segmento').textContent = '';
+    });
+  });
+  function limparErros() {
+    ['nome','telefone','estabelecimento','cidade'].forEach(id => {
+      document.getElementById(id).classList.remove('campo-erro');
+      document.getElementById('erro-' + id).textContent = '';
+    });
+    document.getElementById('erro-segmento').textContent = '';
+  }
+  function validar() {
+    let ok = true; limparErros();
+    const nome = document.getElementById('nome').value.trim();
+    const telefone = document.getElementById('telefone').value.trim();
+    const estabelecimento = document.getElementById('estabelecimento').value.trim();
+    const cidade = document.getElementById('cidade').value;
+    if (!nome) { document.getElementById('nome').classList.add('campo-erro'); document.getElementById('erro-nome').textContent = 'Informe seu nome'; ok = false; }
+    if (!telefone || telefone.replace(/\D/g,'').length < 10) { document.getElementById('telefone').classList.add('campo-erro'); document.getElementById('erro-telefone').textContent = 'WhatsApp inválido'; ok = false; }
+    if (!estabelecimento) { document.getElementById('estabelecimento').classList.add('campo-erro'); document.getElementById('erro-estabelecimento').textContent = 'Informe o nome do estabelecimento'; ok = false; }
+    if (!cidade) { document.getElementById('cidade').classList.add('campo-erro'); document.getElementById('erro-cidade').textContent = 'Selecione sua cidade'; ok = false; }
+    if (!segmentoSelecionado) { document.getElementById('erro-segmento').textContent = 'Selecione o tipo do estabelecimento'; ok = false; }
+    return ok;
+  }
+  function enviarWhatsApp() {
+    if (!validar()) return;
+    const nome = document.getElementById('nome').value.trim();
+    const telefone = document.getElementById('telefone').value.trim();
+    const estabelecimento = document.getElementById('estabelecimento').value.trim();
+    const cidade = document.getElementById('cidade').value;
+    const msg = `Olá Rodrigo! Vi o anúncio da Sloop e gostaria de receber uma proposta comercial. 🍦\n\n*Nome:* ${nome}\n*Estabelecimento:* ${estabelecimento}\n*Tipo:* ${segmentoSelecionado}\n*Cidade:* ${cidade}\n*Telefone:* ${telefone}\n\nAguardo o contato!`;
+    document.getElementById('sucesso-box').classList.add('visivel');
+    document.getElementById('btn-enviar').disabled = true;
+    document.getElementById('btn-enviar').style.opacity = '0.6';
+    setTimeout(() => window.open(`https://wa.me/5521988742831?text=${encodeURIComponent(msg)}`, '_blank'), 800);
+  }
+  document.getElementById('telefone').addEventListener('input', function() {
+    let v = this.value.replace(/\D/g,'');
+    if (v.length > 11) v = v.slice(0,11);
+    if (v.length > 6) v = '(' + v.slice(0,2) + ') ' + v.slice(2,7) + '-' + v.slice(7);
+    else if (v.length > 2) v = '(' + v.slice(0,2) + ') ' + v.slice(2);
+    else if (v.length > 0) v = '(' + v;
+    this.value = v;
+  });
+</script>
+</body>
+</html>
