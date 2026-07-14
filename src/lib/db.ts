@@ -39,6 +39,25 @@ if (!global.pgPool) {
     } catch (e) {
       console.error('Migration campanhas:', e);
     }
+
+    try {
+      await p.query(`ALTER TABLE clientes ADD COLUMN IF NOT EXISTS segmento TEXT`);
+    } catch (e) {
+      console.error('Migration clientes segmento:', e);
+    }
+
+    try {
+      const tabelas = [
+        'clientes', 'parceiros', 'visitas_parceiro', 'campanhas',
+        'campanha_precos', 'campanha_parceiros', 'compras',
+        'prazos_pagamento', 'redes', 'sub_redes',
+      ];
+      for (const tabela of tabelas) {
+        await p.query(`ALTER TABLE ${tabela} ENABLE ROW LEVEL SECURITY`);
+      }
+    } catch (e) {
+      console.error('Migration RLS:', e);
+    }
   })();
 }
 
