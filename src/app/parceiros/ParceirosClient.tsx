@@ -25,6 +25,25 @@ const SEQUENCIAS = [
   { label: 'Sequência 2', min: 1213, max: 9999 },
 ];
 
+// Índice virtual de uma aba extra que agrupa parceiros cuja região está vazia,
+// não-numérica ou fora de todas as faixas acima — em vez de deixá-los somem
+// silenciosamente das abas de Sequência (mesmo aparecendo em "Todos").
+const SEM_REGIAO_TAB = SEQUENCIAS.length;
+
+function regiaoNaFaixa(regiao: any, seq: { min: number; max: number }): boolean {
+  const r = Number(regiao);
+  return !isNaN(r) && r >= seq.min && r <= seq.max;
+}
+
+function pertenceAoTab(p: any, tabIndex: number): boolean {
+  if (tabIndex === SEM_REGIAO_TAB) return !SEQUENCIAS.some(seq => regiaoNaFaixa(p.regiao, seq));
+  return regiaoNaFaixa(p.regiao, SEQUENCIAS[tabIndex]);
+}
+
+function tabLabel(tabIndex: number): string {
+  return tabIndex === SEM_REGIAO_TAB ? 'Sem Região' : SEQUENCIAS[tabIndex]?.label;
+}
+
 async function otimizarRotaORS(
   parceiros: any[],
   startLat: number,
@@ -347,8 +366,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
 
   const parceirosVisiveis = useMemo(() => {
     if (typeof activeTab !== 'number') return parcFiltrados;
-    const seq = SEQUENCIAS[activeTab];
-    return parcFiltrados.filter(p => { const r = Number(p.regiao); return !isNaN(r) && r >= seq.min && r <= seq.max; });
+    return parcFiltrados.filter(p => pertenceAoTab(p, activeTab));
   }, [parcFiltrados, activeTab]);
 
   const listaMostrada = useMemo(() => {
@@ -688,7 +706,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
             Todos ({parcFiltrados.length})
           </button>
           {SEQUENCIAS.map((seq, i) => {
-            const count = parcFiltrados.filter(p => { const r = Number(p.regiao); return !isNaN(r) && r >= seq.min && r <= seq.max && !foiVisitadoSemana(p); }).length;
+            const count = parcFiltrados.filter(p => pertenceAoTab(p, i) && !foiVisitadoSemana(p)).length;
             return (
               <button key={i}
                 onClick={() => handleTabChange(i)}
@@ -706,6 +724,30 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
               </button>
             );
           })}
+          {(() => {
+            // Parceiros com região vazia/inválida/fora das faixas de Sequência acima:
+            // em vez de sumirem sem explicação, ganham uma aba própria para chamar
+            // atenção de que o cadastro (campo Região) precisa ser corrigido.
+            const count = parcFiltrados.filter(p => pertenceAoTab(p, SEM_REGIAO_TAB) && !foiVisitadoSemana(p)).length;
+            if (count === 0) return null;
+            return (
+              <button
+                onClick={() => handleTabChange(SEM_REGIAO_TAB)}
+                title="Parceiros com região vazia, inválida ou fora das faixas cadastradas — corrija o campo Região para eles aparecerem na Sequência correta."
+                className={`px-4 py-2.5 text-sm font-bold transition-colors whitespace-nowrap border-b-2 -mb-px flex items-center gap-2 ${
+                  activeTab === SEM_REGIAO_TAB
+                    ? 'border-amber-400 text-amber-400'
+                    : 'border-transparent text-amber-500/80 hover:text-amber-400'
+                }`}
+              >
+                <AlertCircle className="w-3.5 h-3.5" />
+                Sem Região
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${activeTab === SEM_REGIAO_TAB ? 'bg-amber-400/20' : 'bg-amber-500/15'}`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })()}
         </div>
 
         {/* Header da lista + Botão Organizar */}
@@ -721,7 +763,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
               {rotaOrganizada && (
                 <span className="text-xs text-amber-400 flex items-center gap-1">
                   <Navigation className="w-3 h-3" />
-                  Rota otimizada — {SEQUENCIAS[activeTab as number]?.label}
+                  Rota otimizada — {tabLabel(activeTab as number)}
                 </span>
               )}
               {/* Totalizador de pendências */}
