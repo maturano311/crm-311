@@ -47,6 +47,13 @@ if (!global.pgPool) {
     }
 
     try {
+      await p.query(`ALTER TABLE clientes ADD COLUMN IF NOT EXISTS lat NUMERIC(10,7)`);
+      await p.query(`ALTER TABLE clientes ADD COLUMN IF NOT EXISTS lng NUMERIC(10,7)`);
+    } catch (e) {
+      console.error('Migration clientes lat/lng:', e);
+    }
+
+    try {
       const tabelas = [
         'clientes', 'parceiros', 'visitas_parceiro', 'campanhas',
         'campanha_precos', 'campanha_parceiros', 'compras',

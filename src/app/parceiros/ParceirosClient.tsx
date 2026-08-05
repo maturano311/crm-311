@@ -20,6 +20,42 @@ function getSemanaDoMes(date: Date): number {
   return Math.floor((date.getDate() + firstDayWeekday - 1) / 7) + 1;
 }
 
+// Monta um link de localização (Google Maps) para compartilhar com entregador.
+// Prioriza coordenadas (lat/lng); cai pro endereço textual se não houver.
+function montarLinkLocalizacao(p: any): string | null {
+  if (p?.lat && p?.lng) {
+    return `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}`;
+  }
+  const endereco = [p?.endereco, p?.numero, p?.bairro, p?.cidade].filter(Boolean).join(', ');
+  return endereco ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(endereco)}` : null;
+}
+
+// Copia texto para a área de transferência, com fallback para navegadores/contextos sem Clipboard API.
+async function copiarParaClipboard(texto: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(texto);
+      return true;
+    }
+  } catch {
+    // segue pro fallback
+  }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = texto;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const SEQUENCIAS = [
   { label: 'Sequência 1', min: 1200, max: 1212 },
   { label: 'Sequência 2', min: 1213, max: 9999 },
@@ -160,6 +196,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
   const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null);
   const [leadsProximos, setLeadsProximos] = useState<any[]>([]);
   const [agendandoLeadId, setAgendandoLeadId] = useState<number | null>(null);
+  const [linkCopiadoId, setLinkCopiadoId] = useState<number | null>(null);
 
   // Undo da última visita registrada
   const [ultimaVisita, setUltimaVisita] = useState<{ visitaId: number; parceiro: any; comprou: boolean; valorNum?: number } | null>(null);
@@ -435,6 +472,22 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
     setRotasPorTab(prev => ({ ...prev, [tabKey]: { organizada: true, ordem: novaLista } }));
   };
 
+  const copiarLinkLocalizacao = async (p: any, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const url = montarLinkLocalizacao(p);
+    if (!url) {
+      alert('Este parceiro não tem endereço ou localização cadastrada.');
+      return;
+    }
+    const ok = await copiarParaClipboard(url);
+    if (ok) {
+      setLinkCopiadoId(p.id);
+      setTimeout(() => setLinkCopiadoId(prev => (prev === p.id ? null : prev)), 2000);
+    } else {
+      alert(`Não foi possível copiar automaticamente. Link:\n${url}`);
+    }
+  };
+
   const abrirVisitaModal = async (p: any, e: React.MouseEvent) => {
     e.stopPropagation();
     setVisitaModal({ parceiro: p, tipo: 'FISICO', comprou: false, valor: '', obs: '' });
@@ -448,10 +501,14 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
 
   const confirmarVisita = async () => {
     if (!visitaModal) return;
-    setSalvandoVisita(true);
     const valorNum = visitaModal.comprou && visitaModal.valor
       ? parseFloat(visitaModal.valor.replace(',', '.'))
       : undefined;
+    if (visitaModal.comprou && (!valorNum || isNaN(valorNum) || valorNum <= 0)) {
+      alert('Informe o valor do pedido (maior que zero) para registrar uma compra.');
+      return;
+    }
+    setSalvandoVisita(true);
     const res = await registrarVisita({
       parceiro_id: visitaModal.parceiro.id,
       tipo_visita: visitaModal.tipo,
@@ -462,6 +519,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
     if (res.success) {
       const semanaHoje = getSemanaDoMes(new Date());
       const eraPrimeiraVisitaMes = !visitaModal.parceiro.visitas_mes || visitaModal.parceiro.visitas_mes === 0;
+      const eraPrimeiraCompraMes = !visitaModal.parceiro.compras_mes || visitaModal.parceiro.compras_mes === 0;
       // Salva o parceiro e visitaId para poder desfazer
       const parceiroSnapshot = { ...visitaModal.parceiro };
       setLocalParceiros(prev => prev.map(lp => {
@@ -481,8 +539,9 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
       setLocalMetricas((prev: any) => ({
         ...prev,
         visitados_mes: eraPrimeiraVisitaMes ? Number(prev.visitados_mes) + 1 : Number(prev.visitados_mes),
-        compraram_mes: visitaModal.comprou ? Number(prev.compraram_mes) + 1 : Number(prev.compraram_mes),
+        compraram_mes: (visitaModal.comprou && eraPrimeiraCompraMes) ? Number(prev.compraram_mes) + 1 : Number(prev.compraram_mes),
         sem_visita_15d: eraPrimeiraVisitaMes ? Math.max(0, Number(prev.sem_visita_15d) - 1) : Number(prev.sem_visita_15d),
+        faturamento_mes: (visitaModal.comprou && valorNum) ? Number(prev.faturamento_mes || 0) + valorNum : Number(prev.faturamento_mes || 0),
       }));
       setVisitaModal(null);
       // Ativa o toast de desfazer (15s)
@@ -506,10 +565,14 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
       setLocalParceiros(prev => prev.map(lp =>
         lp.id === ultimaVisita.parceiro.id ? ultimaVisita.parceiro : lp
       ));
+      // ultimaVisita.parceiro é o snapshot de ANTES da visita desfeita ser registrada
+      const eraPrimeiraVisitaMes = !ultimaVisita.parceiro.visitas_mes || ultimaVisita.parceiro.visitas_mes === 0;
+      const eraPrimeiraCompraMes = !ultimaVisita.parceiro.compras_mes || ultimaVisita.parceiro.compras_mes === 0;
       setLocalMetricas((prev: any) => ({
         ...prev,
-        visitados_mes: Math.max(0, Number(prev.visitados_mes) - (ultimaVisita.parceiro.visitas_mes === 0 ? 1 : 0)),
-        compraram_mes: ultimaVisita.comprou ? Math.max(0, Number(prev.compraram_mes) - 1) : Number(prev.compraram_mes),
+        visitados_mes: Math.max(0, Number(prev.visitados_mes) - (eraPrimeiraVisitaMes ? 1 : 0)),
+        compraram_mes: (ultimaVisita.comprou && eraPrimeiraCompraMes) ? Math.max(0, Number(prev.compraram_mes) - 1) : Number(prev.compraram_mes),
+        faturamento_mes: (ultimaVisita.comprou && ultimaVisita.valorNum) ? Math.max(0, Number(prev.faturamento_mes || 0) - ultimaVisita.valorNum) : Number(prev.faturamento_mes || 0),
       }));
       if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
       setUltimaVisita(null);
@@ -598,9 +661,14 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
       </header>
 
       {/* Métricas */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-3 md:gap-4">
         <MetricCard icon={<Users />} title="Parceiros Ativos" value={localMetricas.total_ativos} />
         <MetricCard icon={<Eye className="text-cyan-400" />} title="Visitados (Mês)" value={localMetricas.visitados_mes} />
+        <MetricCard
+          icon={<DollarSign className="text-emerald-400" />}
+          title="Total Vendido (Mês)"
+          value={localMetricas.faturamento_mes && Number(localMetricas.faturamento_mes) > 0 ? `R$ ${Number(localMetricas.faturamento_mes).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'R$ —'}
+        />
         <MetricCard
           icon={<ShoppingCart className="text-emerald-400" />}
           title="Compraram (Mês)"
@@ -901,6 +969,13 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
                   ) : null;
                 })()}
                 <button
+                  onClick={e => copiarLinkLocalizacao(p, e)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold bg-violet-500/10 border border-violet-500/30 text-violet-400 hover:bg-violet-500 hover:text-black transition-all"
+                  title="Copiar link de localização (para enviar ao entregador)"
+                >
+                  {linkCopiadoId === p.id ? '✅ Copiado!' : '🔗 Copiar Link'}
+                </button>
+                <button
                   onClick={e => abrirVisitaModal(p, e)}
                   className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500 text-black hover:bg-emerald-400 transition-all font-black"
                 >
@@ -1004,7 +1079,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-emerald-400">R$</span>
                   <input
-                    type="number" step="0.01" min="0"
+                    type="number" step="0.01" min="0.01"
                     placeholder="0,00"
                     value={visitaModal.valor}
                     onChange={e => setVisitaModal(m => m ? { ...m, valor: e.target.value } : m)}
@@ -1012,6 +1087,9 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
                     autoFocus
                   />
                 </div>
+                {(!visitaModal.valor || isNaN(parseFloat(visitaModal.valor.replace(',', '.'))) || parseFloat(visitaModal.valor.replace(',', '.')) <= 0) && (
+                  <p className="text-[11px] text-rose-400 font-bold mt-1.5">Informe um valor maior que zero.</p>
+                )}
               </div>
             )}
 
@@ -1065,7 +1143,7 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
               </button>
               <button
                 onClick={confirmarVisita}
-                disabled={salvandoVisita}
+                disabled={salvandoVisita || (visitaModal.comprou && (!visitaModal.valor || isNaN(parseFloat(visitaModal.valor.replace(',', '.'))) || parseFloat(visitaModal.valor.replace(',', '.')) <= 0))}
                 className="flex-1 py-2.5 rounded-lg text-sm font-bold bg-cyan-500 text-black hover:bg-cyan-400 transition-all disabled:opacity-50"
               >
                 {salvandoVisita ? 'Salvando...' : 'Confirmar'}
@@ -1673,20 +1751,29 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
                 )}
               </div>
 
-              {/* Waze */}
-              {(() => {
-                const wazeUrl = selectedParceiro.lat && selectedParceiro.lng
-                  ? `https://waze.com/ul?ll=${selectedParceiro.lat},${selectedParceiro.lng}&navigate=yes`
-                  : selectedParceiro.endereco
-                    ? `https://waze.com/ul?q=${encodeURIComponent([selectedParceiro.endereco, selectedParceiro.numero, selectedParceiro.bairro, selectedParceiro.cidade].filter(Boolean).join(', '))}&navigate=yes`
-                    : null;
-                return wazeUrl ? (
-                  <a href={wazeUrl} target="_blank" rel="noreferrer"
-                    className="inline-block text-xs bg-cyan-500 text-black px-4 py-2 rounded-lg font-bold hover:opacity-80 transition-opacity">
-                    🗺️ Abrir no Waze
-                  </a>
-                ) : null;
-              })()}
+              {/* Waze + Copiar link de localização */}
+              <div className="flex gap-2 flex-wrap">
+                {(() => {
+                  const wazeUrl = selectedParceiro.lat && selectedParceiro.lng
+                    ? `https://waze.com/ul?ll=${selectedParceiro.lat},${selectedParceiro.lng}&navigate=yes`
+                    : selectedParceiro.endereco
+                      ? `https://waze.com/ul?q=${encodeURIComponent([selectedParceiro.endereco, selectedParceiro.numero, selectedParceiro.bairro, selectedParceiro.cidade].filter(Boolean).join(', '))}&navigate=yes`
+                      : null;
+                  return wazeUrl ? (
+                    <a href={wazeUrl} target="_blank" rel="noreferrer"
+                      className="inline-block text-xs bg-cyan-500 text-black px-4 py-2 rounded-lg font-bold hover:opacity-80 transition-opacity">
+                      🗺️ Abrir no Waze
+                    </a>
+                  ) : null;
+                })()}
+                <button
+                  onClick={e => copiarLinkLocalizacao(selectedParceiro, e)}
+                  className="inline-block text-xs bg-violet-500/10 border border-violet-500/30 text-violet-400 px-4 py-2 rounded-lg font-bold hover:bg-violet-500 hover:text-black transition-all"
+                  title="Copiar link de localização (para enviar ao entregador)"
+                >
+                  {linkCopiadoId === selectedParceiro.id ? '✅ Copiado!' : '🔗 Copiar Link'}
+                </button>
+              </div>
 
               {/* Histórico de Visitas */}
               <div className="space-y-2">

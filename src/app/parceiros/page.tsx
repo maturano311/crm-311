@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function ParceirosPage() {
   let parceiros: any[] = [];
-  let metricas = { total_ativos: 0, visitados_mes: 0, compraram_mes: 0, sem_visita_15d: 0, ticket_medio_mes: null as any, ticket_medio_geral: null as any, total_devolvido_mes: null as any };
+  let metricas = { total_ativos: 0, visitados_mes: 0, compraram_mes: 0, sem_visita_15d: 0, ticket_medio_mes: null as any, ticket_medio_geral: null as any, total_devolvido_mes: null as any, faturamento_mes: null as any };
   let regioes: string[] = [];
   let campanhas: any[] = [];
   let tabelas: string[] = [];
@@ -52,7 +52,8 @@ export default async function ParceirosPage() {
         )) as sem_visita_15d,
         (SELECT ROUND(AVG(valor_pedido)::numeric, 2) FROM visitas_parceiro WHERE comprou = true AND status = 'confirmado' AND valor_pedido > 0 AND data_visita >= date_trunc('month', CURRENT_DATE)) as ticket_medio_mes,
         (SELECT ROUND(AVG(valor_pedido)::numeric, 2) FROM visitas_parceiro WHERE comprou = true AND status = 'confirmado' AND valor_pedido > 0) as ticket_medio_geral,
-        (SELECT COALESCE(SUM(COALESCE(valor_devolvido, valor_pedido)), 0) FROM visitas_parceiro WHERE status = 'devolvido' AND COALESCE(data_devolucao, data_visita::date) >= date_trunc('month', CURRENT_DATE)) as total_devolvido_mes
+        (SELECT COALESCE(SUM(COALESCE(valor_devolvido, valor_pedido)), 0) FROM visitas_parceiro WHERE status = 'devolvido' AND COALESCE(data_devolucao, data_visita::date) >= date_trunc('month', CURRENT_DATE)) as total_devolvido_mes,
+        (SELECT COALESCE(SUM(valor_pedido), 0) FROM visitas_parceiro WHERE comprou = true AND status = 'confirmado' AND valor_pedido > 0 AND data_visita >= date_trunc('month', CURRENT_DATE)) as faturamento_mes
     `);
     metricas = metricasRes.rows[0];
 

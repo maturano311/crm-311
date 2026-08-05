@@ -499,7 +499,7 @@ export async function buscarRankingRecorrencia() {
       ROUND(AVG(vp.valor_pedido) FILTER (WHERE vp.valor_pedido > 0), 2) as ticket_medio
     FROM visitas_parceiro vp
     JOIN parceiros p ON p.id = vp.parceiro_id
-    WHERE vp.comprou = true
+    WHERE vp.comprou = true AND vp.status = 'confirmado'
     GROUP BY p.id, p.nome_fantasia, p.cod_parceiro, p.perfil
     ORDER BY total_compras DESC
     LIMIT 10

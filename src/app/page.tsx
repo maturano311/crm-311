@@ -23,6 +23,7 @@ export default async function Home() {
     sem_visita_15d: 0,
     ticket_medio_mes: null as string | null,
     ticket_medio_geral: null as string | null,
+    faturamento_mes: null as string | null,
   };
 
   let campanhas: {
@@ -74,7 +75,8 @@ export default async function Home() {
           SELECT 1 FROM visitas_parceiro vp WHERE vp.parceiro_id = p.id AND vp.data_visita >= CURRENT_DATE - INTERVAL '15 days'
         )) as sem_visita_15d,
         (SELECT ROUND(AVG(valor_pedido)::numeric, 2) FROM visitas_parceiro WHERE comprou = true AND status = 'confirmado' AND valor_pedido > 0 AND data_visita >= date_trunc('month', CURRENT_DATE)) as ticket_medio_mes,
-        (SELECT ROUND(AVG(valor_pedido)::numeric, 2) FROM visitas_parceiro WHERE comprou = true AND status = 'confirmado' AND valor_pedido > 0) as ticket_medio_geral
+        (SELECT ROUND(AVG(valor_pedido)::numeric, 2) FROM visitas_parceiro WHERE comprou = true AND status = 'confirmado' AND valor_pedido > 0) as ticket_medio_geral,
+        (SELECT COALESCE(SUM(valor_pedido), 0) FROM visitas_parceiro WHERE comprou = true AND status = 'confirmado' AND valor_pedido > 0 AND data_visita >= date_trunc('month', CURRENT_DATE)) as faturamento_mes
     `);
     const p = parceirosRes.rows[0];
     parceiros = {
@@ -84,6 +86,7 @@ export default async function Home() {
       sem_visita_15d: Number(p.sem_visita_15d),
       ticket_medio_mes: p.ticket_medio_mes,
       ticket_medio_geral: p.ticket_medio_geral,
+      faturamento_mes: p.faturamento_mes,
     };
 
     // Campanhas Ativas

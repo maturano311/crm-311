@@ -22,6 +22,7 @@ interface HomeProps {
     sem_visita_15d: number;
     ticket_medio_mes: string | null;
     ticket_medio_geral: string | null;
+    faturamento_mes: string | null;
   };
   campanhas: {
     id: number;
@@ -294,6 +295,26 @@ export default function HomeClient({ leads, parceiros, campanhas }: HomeProps) {
         {/* ── PARCEIROS CARD ── */}
         <SectionCard title="Clientes Ativos (Parceiros)" icon={<UserCheck className="w-5 h-5" />} href="/parceiros">
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+            {/* Total Vendido no mês — destaque */}
+            <div
+              style={{
+                background: 'rgba(0,230,118,0.08)',
+                border: '1px solid rgba(0,230,118,0.2)',
+                borderRadius: 'var(--radius)',
+                padding: '0.7rem 0.85rem',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <span style={{ fontSize: '0.78rem', color: 'var(--muted-foreground)' }}>Total Vendido (mês)</span>
+              <span style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '1.3rem' }}>
+                {parceiros.faturamento_mes && Number(parceiros.faturamento_mes) > 0
+                  ? `R$ ${Number(parceiros.faturamento_mes).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  : 'R$ —'}
+              </span>
+            </div>
+
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.6rem' }}>
               {[
                 { label: 'Ativos', value: parceiros.total_ativos, color: 'var(--foreground)' },

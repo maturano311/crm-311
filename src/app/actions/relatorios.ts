@@ -61,11 +61,13 @@ export async function buscarRelatoriosVendas(periodo: string = '30d') {
     const { rows: [r] } = await pool.query(`
       SELECT
         COUNT(*)                                                               AS total_visitas,
-        COUNT(*) FILTER (WHERE comprou = true)                                AS compraram,
+        COUNT(*) FILTER (WHERE comprou = true AND status = 'confirmado')      AS compraram,
         COUNT(*) FILTER (WHERE comprou = false)                               AS nao_compraram,
         COALESCE(SUM(valor_pedido) FILTER (WHERE comprou = true
+                                       AND status = 'confirmado'
                                        AND valor_pedido IS NOT NULL), 0)      AS faturamento_total,
         COALESCE(AVG(valor_pedido) FILTER (WHERE comprou = true
+                                       AND status = 'confirmado'
                                        AND valor_pedido > 0),           0)    AS ticket_medio
       FROM visitas_parceiro vp
       WHERE 1=1 ${filtro}
@@ -115,10 +117,12 @@ export async function buscarRelatoriosVendas(periodo: string = '30d') {
         p.nome_fantasia,
         p.bairro,
         COUNT(*)                                                                     AS total_visitas,
-        COUNT(*) FILTER (WHERE vp.comprou = true)                                   AS total_compras,
+        COUNT(*) FILTER (WHERE vp.comprou = true AND vp.status = 'confirmado')      AS total_compras,
         COALESCE(SUM(vp.valor_pedido) FILTER (WHERE vp.comprou = true
+                                          AND vp.status = 'confirmado'
                                           AND vp.valor_pedido IS NOT NULL), 0)      AS faturamento_total,
         COALESCE(AVG(vp.valor_pedido) FILTER (WHERE vp.comprou = true
+                                          AND vp.status = 'confirmado'
                                           AND vp.valor_pedido > 0),         0)      AS ticket_medio
       FROM visitas_parceiro vp
       INNER JOIN parceiros p ON p.id = vp.parceiro_id
@@ -145,19 +149,19 @@ export async function buscarRelatoriosVendas(periodo: string = '30d') {
         p.nome_fantasia,
         p.bairro,
         TO_CHAR(
-          MAX(vp.data_visita) FILTER (WHERE vp.comprou = true)::date,
+          MAX(vp.data_visita) FILTER (WHERE vp.comprou = true AND vp.status = 'confirmado')::date,
           'YYYY-MM-DD'
         )                                                                    AS ultima_compra,
         (CURRENT_DATE -
-          MAX(vp.data_visita) FILTER (WHERE vp.comprou = true)::date
+          MAX(vp.data_visita) FILTER (WHERE vp.comprou = true AND vp.status = 'confirmado')::date
         )::int                                                               AS dias_sem_compra
       FROM parceiros p
       INNER JOIN visitas_parceiro vp ON vp.parceiro_id = p.id
       WHERE p.ativo = true
       GROUP BY p.id, p.nome_fantasia, p.bairro
       HAVING (
-        MAX(vp.data_visita) FILTER (WHERE vp.comprou = true) IS NULL
-        OR MAX(vp.data_visita) FILTER (WHERE vp.comprou = true)::date
+        MAX(vp.data_visita) FILTER (WHERE vp.comprou = true AND vp.status = 'confirmado') IS NULL
+        OR MAX(vp.data_visita) FILTER (WHERE vp.comprou = true AND vp.status = 'confirmado')::date
              <= CURRENT_DATE - INTERVAL '14 days'
       )
       ORDER BY dias_sem_compra DESC NULLS FIRST
