@@ -410,6 +410,8 @@ export async function atualizarParceiro(id: number, data: {
   telefone: string;
   obs_comercial: string;
   obs_loja: string;
+  lat?: number | null;
+  lng?: number | null;
 }) {
   try {
     await pool.query(`
@@ -426,11 +428,14 @@ export async function atualizarParceiro(id: number, data: {
         tabela_preco = NULLIF($11, ''),
         telefone = NULLIF($12, ''),
         obs_comercial = NULLIF($13, ''),
-        obs_loja = NULLIF($14, '')
+        obs_loja = NULLIF($14, ''),
+        lat = COALESCE($15, lat),
+        lng = COALESCE($16, lng)
       WHERE id = $1
     `, [id, data.nome_fantasia, data.cod_parceiro || null, data.regiao, data.sequencia || null,
         data.endereco, data.numero, data.bairro, data.cidade, data.perfil,
-        data.tabela_preco, data.telefone, data.obs_comercial, data.obs_loja]);
+        data.tabela_preco, data.telefone, data.obs_comercial, data.obs_loja,
+        data.lat ?? null, data.lng ?? null]);
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e.message };

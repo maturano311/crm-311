@@ -50,8 +50,16 @@ export async function salvarEdicaoCliente(id: number, dados: {
   bairro: string | null;
   cidade: string | null;
   status: string | null;
+  lat?: number | null;
+  lng?: number | null;
 }) {
   try {
+    // Só recalcula o link do mapa quando uma nova geolocalização é enviada,
+    // para não apagar um link já salvo em edições que não mexem no GPS.
+    const mapsUrl = (dados.lat && dados.lng)
+      ? `https://waze.com/ul?ll=${dados.lat},${dados.lng}&navigate=yes`
+      : null;
+
     await pool.query(`
       UPDATE clientes
       SET
@@ -71,7 +79,10 @@ export async function salvarEdicaoCliente(id: number, dados: {
         endereco = $14,
         bairro = $15,
         cidade = $16,
-        status = COALESCE(NULLIF($17, ''), status)
+        status = COALESCE(NULLIF($17, ''), status),
+        lat = COALESCE($19, lat),
+        lng = COALESCE($20, lng),
+        google_maps_url = COALESCE($21, google_maps_url)
       WHERE id = $18
     `, [
       dados.nome_fantasia || null,
@@ -91,9 +102,12 @@ export async function salvarEdicaoCliente(id: number, dados: {
       dados.bairro || null,
       dados.cidade || null,
       dados.status || null,
-      id
+      id,
+      dados.lat ?? null,
+      dados.lng ?? null,
+      mapsUrl
     ]);
-    
+
     revalidatePath('/');
     return { success: true };
   } catch (error) {

@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { Users, AlertCircle, MapPin, X, Phone, Search, Eye, Share2, DollarSign, FileText, ChevronLeft, Calendar, ShoppingCart, Navigation, Pencil, RotateCcw, CheckCircle, Route, Target, Undo2 } from 'lucide-react';
 import { registrarVisita, buscarHistoricoVisitas, atualizarParceiro, toggleAtivoParceiro, marcarParceiroNaCampanha, buscarParticipantesCampanha, buscarRankingRecorrencia, cancelarVisita, registrarDevolucao, buscarLeadsPorBairro, desfazerVisitaParceiro, adicionarParceiroCampanha, removerParceiroDaCampanha, buscarDevolucoesMes } from '../actions/parceiros';
 import { agendarRevisita } from '../actions';
+import { reverseGeocode } from '../actions/radar';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 
@@ -144,6 +145,8 @@ interface EditModalState {
   telefone: string;
   obs_comercial: string;
   obs_loja: string;
+  lat: number | null;
+  lng: number | null;
 }
 
 export default function ParceirosClient({ parceiros, metricas, regioes, campanhas, tabelas = [], cidades = [] }: {
@@ -313,6 +316,42 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
       telefone: p.telefone || '',
       obs_comercial: p.obs_comercial || '',
       obs_loja: p.obs_loja || '',
+      // NUMERIC do Postgres vem como string via pg — converte pra number
+      lat: p.lat != null ? Number(p.lat) : null,
+      lng: p.lng != null ? Number(p.lng) : null,
+    });
+  };
+
+  const [isLocatingEdit, setIsLocatingEdit] = useState(false);
+
+  const handlePegarLocalizacaoEdit = () => {
+    if (!navigator.geolocation) {
+      alert('Seu navegador não suporta geolocalização.');
+      return;
+    }
+    setIsLocatingEdit(true);
+    navigator.geolocation.getCurrentPosition(async (position) => {
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
+
+      const res = await reverseGeocode(lat, lng);
+      if (res.success && res.data) {
+        setEditModal(m => m ? {
+          ...m,
+          lat, lng,
+          endereco: res.data.endereco || m.endereco,
+          bairro: res.data.bairro || m.bairro,
+          cidade: res.data.cidade || m.cidade,
+        } : m);
+      } else {
+        // Mesmo sem endereço formatado, guarda as coordenadas capturadas
+        setEditModal(m => m ? { ...m, lat, lng } : m);
+        alert(res.error || 'Erro ao converter coordenadas no Google.');
+      }
+      setIsLocatingEdit(false);
+    }, (error) => {
+      alert('Erro ao acessar o GPS: ' + error.message);
+      setIsLocatingEdit(false);
     });
   };
 
@@ -333,6 +372,8 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
       telefone: editModal.telefone,
       obs_comercial: editModal.obs_comercial,
       obs_loja: editModal.obs_loja,
+      lat: editModal.lat,
+      lng: editModal.lng,
     });
     if (res.success) {
       const codFinal = editModal.parceiro.cod_parceiro ?? (editModal.cod_parceiro ? parseInt(editModal.cod_parceiro) : null);
@@ -351,6 +392,8 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
         telefone: editModal.telefone || null,
         obs_comercial: editModal.obs_comercial || null,
         obs_loja: editModal.obs_loja || null,
+        lat: editModal.lat,
+        lng: editModal.lng,
       };
       setLocalParceiros(prev => prev.map(lp => lp.id === updated.id ? updated : lp));
       if (selectedParceiro?.id === updated.id) setSelectedParceiro(updated);
@@ -1220,6 +1263,20 @@ export default function ParceirosClient({ parceiros, metricas, regioes, campanha
               </div>
 
               {/* Endereço */}
+              <div>
+                <button
+                  type="button"
+                  onClick={handlePegarLocalizacaoEdit}
+                  disabled={isLocatingEdit}
+                  className="w-full flex items-center justify-center gap-2 border border-cyan-400 text-cyan-400 py-2 rounded-lg text-sm font-bold hover:bg-cyan-400 hover:text-black transition-colors disabled:opacity-50"
+                >
+                  <Navigation className="w-3.5 h-3.5" />
+                  {isLocatingEdit ? 'Capturando Satélites...' : editModal.lat && editModal.lng ? 'Recapturar Localização Atual (GPS)' : 'Pegar Localização Atual (GPS)'}
+                </button>
+                {editModal.lat && editModal.lng && (
+                  <p className="text-xs text-emerald-400 text-center mt-1">📍 Localização capturada ({editModal.lat.toFixed(5)}, {editModal.lng.toFixed(5)})</p>
+                )}
+              </div>
               <div className="grid grid-cols-3 gap-3">
                 <div className="col-span-2">
                   <label className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-wider">Rua / Endereço</label>

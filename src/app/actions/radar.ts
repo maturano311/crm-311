@@ -214,20 +214,22 @@ export async function adicionarLeadManual(dados: any) {
     await pool.query(`
       INSERT INTO clientes (
         nome_fantasia, tipo, status, tipo_entrada, prioridade,
-        endereco, bairro, cidade, google_maps_url, data_visitacao
+        endereco, bairro, cidade, lat, lng, google_maps_url, data_visitacao
       ) VALUES (
-        $1, $2, $3, $4, $5, 
-        $6, $7, $8, $9, $10
+        $1, $2, $3, $4, $5,
+        $6, $7, $8, $9, $10, $11, $12
       )
     `, [
-      dados.nome_fantasia, 
-      dados.tipo, 
-      dados.status || 'Não iniciada', 
-      dados.tipo_entrada || 'A PROSPECTAR', 
+      dados.nome_fantasia,
+      dados.tipo,
+      dados.status || 'Não iniciada',
+      dados.tipo_entrada || 'A PROSPECTAR',
       'MEDIA',
-      dados.endereco, 
-      dados.bairro, 
-      dados.cidade, 
+      dados.endereco,
+      dados.bairro,
+      dados.cidade,
+      dados.lat ?? null,
+      dados.lng ?? null,
       mapsUrl,
       data_visitacao
     ]);

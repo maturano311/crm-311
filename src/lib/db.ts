@@ -14,8 +14,8 @@ if (!global.pgPool) {
   });
 
   (async () => {
+    const p = global.pgPool!;
     try {
-      const p = global.pgPool!;
       await p.query(`ALTER TABLE campanhas ADD COLUMN IF NOT EXISTS rede TEXT`);
       await p.query(`ALTER TABLE campanhas ADD COLUMN IF NOT EXISTS preco_base NUMERIC(10,2)`);
       await p.query(`ALTER TABLE campanhas ADD COLUMN IF NOT EXISTS bonificacao_pct NUMERIC(5,2)`);

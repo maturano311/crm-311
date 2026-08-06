@@ -42,6 +42,7 @@ export default function DashboardClient({ clientes, metricas, prazos = [], redes
   });
   
   const [isEditing, setIsEditing] = useState(false);
+  const [isLocatingEdit, setIsLocatingEdit] = useState(false);
   const [editForm, setEditForm] = useState({
     prazo_pagamento: '',
     observacao_atendimento: '',
@@ -58,7 +59,9 @@ export default function DashboardClient({ clientes, metricas, prazos = [], redes
     endereco: '',
     bairro: '',
     cidade: '',
-    status: ''
+    status: '',
+    lat: null as number | null,
+    lng: null as number | null
   });
 
   // Atualiza o form sempre que o cliente for selecionado
@@ -80,7 +83,10 @@ export default function DashboardClient({ clientes, metricas, prazos = [], redes
         endereco: selectedCliente.endereco || '',
         bairro: selectedCliente.bairro || '',
         cidade: selectedCliente.cidade || '',
-        status: selectedCliente.status || ''
+        status: selectedCliente.status || '',
+        // NUMERIC do Postgres vem como string via pg — converte pra number
+        lat: selectedCliente.lat != null ? Number(selectedCliente.lat) : null,
+        lng: selectedCliente.lng != null ? Number(selectedCliente.lng) : null
       });
       setIsEditing(false);
       setNotaRapida('');
@@ -156,6 +162,8 @@ export default function DashboardClient({ clientes, metricas, prazos = [], redes
       bairro: editForm.bairro || null,
       cidade: editForm.cidade || null,
       status: editForm.status || null,
+      lat: editForm.lat,
+      lng: editForm.lng,
     });
     if (res.success) {
       setSelectedCliente({ ...selectedCliente, ...editForm });
@@ -244,6 +252,37 @@ export default function DashboardClient({ clientes, metricas, prazos = [], redes
     }, (error) => {
       alert('Erro ao acessar o GPS: ' + error.message);
       setIsLocating(false);
+    });
+  };
+
+  const handlePegarLocalizacaoEdit = () => {
+    if (!navigator.geolocation) {
+      alert('Seu navegador não suporta geolocalização.');
+      return;
+    }
+    setIsLocatingEdit(true);
+    navigator.geolocation.getCurrentPosition(async (position) => {
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
+
+      const res = await reverseGeocode(lat, lng);
+      if (res.success && res.data) {
+        setEditForm(prev => ({
+          ...prev,
+          lat, lng,
+          endereco: res.data.endereco,
+          bairro: res.data.bairro,
+          cidade: res.data.cidade
+        }));
+      } else {
+        // Mesmo sem endereço formatado, guarda as coordenadas capturadas
+        setEditForm(prev => ({ ...prev, lat, lng }));
+        alert(res.error || 'Erro ao converter coordenadas no Google.');
+      }
+      setIsLocatingEdit(false);
+    }, (error) => {
+      alert('Erro ao acessar o GPS: ' + error.message);
+      setIsLocatingEdit(false);
     });
   };
 
@@ -815,6 +854,18 @@ export default function DashboardClient({ clientes, metricas, prazos = [], redes
                 </h3>
                 {isEditing ? (
                   <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={handlePegarLocalizacaoEdit}
+                      disabled={isLocatingEdit}
+                      className="w-full flex items-center justify-center gap-2 border border-[var(--primary)] text-[var(--primary)] py-2 rounded-md text-sm font-bold hover:bg-[var(--primary)] hover:text-black transition-colors disabled:opacity-50"
+                    >
+                      <Navigation className="w-3.5 h-3.5" />
+                      {isLocatingEdit ? 'Capturando Satélites...' : editForm.lat && editForm.lng ? 'Recapturar Localização Atual (GPS)' : 'Pegar Localização Atual (GPS)'}
+                    </button>
+                    {editForm.lat && editForm.lng && (
+                      <p className="text-xs text-emerald-400 text-center">📍 Localização capturada ({editForm.lat.toFixed(5)}, {editForm.lng.toFixed(5)})</p>
+                    )}
                     <input
                       type="text"
                       placeholder="Endereço (rua + número)"
